@@ -1,0 +1,7 @@
+cargo:rerun-if-changed=imp
+cargo:rerun-if-env-changed=PROC_MACRO_TEST_TOOLCHAIN
+Creating /home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/build/proc-macro-test-dd8004e556e61739/out/proc-macro-test-imp-staging
+Creating /home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/build/proc-macro-test-dd8004e556e61739/out/proc-macro-test-imp-staging/src
+Copying /home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/crates/proc-macro-test/imp/Cargo.toml to /home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/build/proc-macro-test-dd8004e556e61739/out/proc-macro-test-imp-staging/Cargo.toml
+Copying /home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/crates/proc-macro-test/imp/src/lib.rs to /home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/build/proc-macro-test-dd8004e556e61739/out/proc-macro-test-imp-staging/src/lib.rs
+Running "/home/dennis/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo" "build" "-p" "proc-macro-test-impl" "--message-format" "json" "--target-dir" "/home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/build/proc-macro-test-dd8004e556e61739/out/target"

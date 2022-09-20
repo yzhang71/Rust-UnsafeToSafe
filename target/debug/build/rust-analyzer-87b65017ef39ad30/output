@@ -1,0 +1,3 @@
+cargo:rerun-if-env-changed=CFG_RELEASE
+cargo:rerun-if-changed=/home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/.git/HEAD
+cargo:rustc-env=POKE_RA_DEVS=1

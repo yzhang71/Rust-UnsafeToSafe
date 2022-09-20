@@ -1,0 +1,5 @@
+/home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/deps/text_edit-cfc3f714ca363b72.rmeta: crates/text-edit/src/lib.rs
+
+/home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/deps/text_edit-cfc3f714ca363b72.d: crates/text-edit/src/lib.rs
+
+crates/text-edit/src/lib.rs:

@@ -1,0 +1,13 @@
+/home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/deps/semver-bbc82812f7ee67dd.rmeta: /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/lib.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/backport.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/display.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/error.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/eval.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/identifier.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/impls.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/parse.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/serde.rs
+
+/home/dennis/Documents/Rust_Project/UnsafeToSafe/rust-analyzer-UnsafeToSafe/target/debug/deps/semver-bbc82812f7ee67dd.d: /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/lib.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/backport.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/display.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/error.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/eval.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/identifier.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/impls.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/parse.rs /home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/serde.rs
+
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/lib.rs:
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/backport.rs:
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/display.rs:
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/error.rs:
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/eval.rs:
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/identifier.rs:
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/impls.rs:
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/parse.rs:
+/home/dennis/.cargo/registry/src/github.com-1ecc6299db9ec823/semver-1.0.13/src/serde.rs:
