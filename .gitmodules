@@ -1,0 +1,3 @@
+[submodule "rust-analyzer"]
+	path = rust-analyzer
+	url = https://github.com/rust-lang/rust-analyzer.git
