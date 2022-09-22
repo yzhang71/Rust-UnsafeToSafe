@@ -124,6 +124,7 @@ mod handlers {
     mod convert_to_guarded_return;
     mod convert_two_arm_bool_match_to_matches_macro;
     mod convert_while_to_loop;
+    mod convert_unsafe_to_safe;
     mod destructure_tuple_binding;
     mod expand_glob_import;
     mod extract_function;
@@ -221,6 +222,7 @@ mod handlers {
             convert_tuple_struct_to_named_struct::convert_tuple_struct_to_named_struct,
             convert_two_arm_bool_match_to_matches_macro::convert_two_arm_bool_match_to_matches_macro,
             convert_while_to_loop::convert_while_to_loop,
+            convert_unsafe_to_safe::convert_unsafe_to_safe,
             destructure_tuple_binding::destructure_tuple_binding,
             expand_glob_import::expand_glob_import,
             extract_struct_from_enum_variant::extract_struct_from_enum_variant,
@@ -289,7 +291,7 @@ mod handlers {
             unmerge_match_arm::unmerge_match_arm,
             unmerge_use::unmerge_use,
             unnecessary_async::unnecessary_async,
-            unwrap_block::unwrap_block,
+            // unwrap_block::unwrap_block,
             unwrap_result_return_type::unwrap_result_return_type,
             wrap_return_type_in_result::wrap_return_type_in_result,
             // These are manually sorted for better priorities. By default,
