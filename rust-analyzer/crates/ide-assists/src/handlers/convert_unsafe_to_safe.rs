@@ -43,6 +43,26 @@ use syntax::{
 // }
 // ```
 
+pub enum UnsafePattern {
+    UnitializedVec,
+}
+
+impl std::fmt::Display for UnsafePattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            UnsafePattern::UnitializedVec => write!(f, "set_len"),
+        }
+    }
+}
+
+// impl UnsafePattern {
+//     fn as_str(&self) -> &'static str {
+//         match self {
+//             UnsafePattern::set_len => "set_len",
+//         }
+//     }
+// }
+
 fn convert_to_auto_vec_initialization(acc: &mut Assists, each_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
 
     let mcall = each_expr.parent().and_then(ast::MethodCallExpr::cast)?;
@@ -151,13 +171,13 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
 
     let unsafe_range = unsafe_expr.syntax().text_range();
 
-    dbg!(unsafe_expr.syntax().parent());
+    // dbg!(unsafe_expr.syntax().parent());
 
     // Iteration through the "unsafe" expressions' AST
     for each_expr in unsafe_expr.syntax().descendants() {
 
         // Detect the first pattern "vec/buf declared, but without initialization" in unsafe code block
-        if each_expr.to_string() == "set_len" {
+        if each_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
             // Convert first pattern to safe code by calling auto initialization function
             convert_to_auto_vec_initialization(acc, &each_expr, unsafe_range);
         }

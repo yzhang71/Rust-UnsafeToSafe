@@ -11,11 +11,16 @@ use ide_db::{
     syntax_helpers::insert_whitespace_into_node,
     RootDatabase,
 };
+
+use ide_assists::{
+    handlers::convert_unsafe_to_safe::UnsafePattern,
+};
+
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
     algo, ast, match_ast, AstNode, Direction,
-    SyntaxKind::{LET_EXPR, LET_STMT},
+    SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW},
     SyntaxToken, T,
 };
 
@@ -234,6 +239,44 @@ pub(super) fn keyword(
     if !token.kind().is_keyword() || !config.documentation.is_some() || !config.keywords {
         return None;
     }
+    
+    // Yuchen's Edit -> Detect unsafe keyword
+    if token.kind() == UNSAFE_KW {
+        let us_parent = token.parent()?;
+        let us_famous_defs = FamousDefs(sema, sema.scope(&us_parent)?.krate());
+    
+        let KeywordHint { description, keyword_mod, actions } = keyword_hints(sema, token, us_parent);
+
+        let doc_owner = find_std_module(&us_famous_defs, &keyword_mod)?;
+
+        let unsafe_expr = token.parent().and_then(ast::BlockExpr::cast)?;
+
+        for each_expr in unsafe_expr.syntax().descendants() {
+
+            if each_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
+                // Convert first pattern to safe code by calling auto initialization function
+                let us_description = "Unsafe code to Safe code Suggestion".to_string();
+                let us_docs = "Here is your safe code suggestion".to_string();
+                let markup = process_markup(
+                    sema.db,
+                    Definition::Module(doc_owner),
+                    &markup(Some(us_docs), us_description, None)?,
+                    config,
+                );
+                return Some(HoverResult { markup, actions });
+            }
+        }
+
+        let docs = doc_owner.attrs(sema.db).docs()?;
+        let markup = process_markup(
+            sema.db,
+            Definition::Module(doc_owner),
+            &markup(Some(docs.into()), description, None)?,
+            config,
+        );
+        return Some(HoverResult { markup, actions });
+    }
+
     let parent = token.parent()?;
     let famous_defs = FamousDefs(sema, sema.scope(&parent)?.krate());
 
@@ -248,6 +291,7 @@ pub(super) fn keyword(
         config,
     );
     Some(HoverResult { markup, actions })
+
 }
 
 pub(super) fn try_for_lint(attr: &ast::Attr, token: &SyntaxToken) -> Option<HoverResult> {

@@ -101,7 +101,7 @@ pub fn assists(
     acc.finish()
 }
 
-mod handlers {
+pub mod handlers {
     use crate::{AssistContext, Assists};
 
     pub(crate) type Handler = fn(&mut Assists, &AssistContext<'_>) -> Option<()>;
@@ -124,7 +124,7 @@ mod handlers {
     mod convert_to_guarded_return;
     mod convert_two_arm_bool_match_to_matches_macro;
     mod convert_while_to_loop;
-    mod convert_unsafe_to_safe;
+    pub mod convert_unsafe_to_safe;
     mod destructure_tuple_binding;
     mod expand_glob_import;
     mod extract_function;

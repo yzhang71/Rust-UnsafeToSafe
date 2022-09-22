@@ -4060,12 +4060,13 @@ mod return_keyword {}
 }
 
 #[test]
+// Yuchen's Edit -> for testing unsafe keyword
 fn hover_keyword_doc() {
     check(
         r#"
 //- /main.rs crate:main deps:std
 fn foo() {
-    let bar = mov$0e || {};
+    let bar = unsaf$0e || {};
 }
 //- /libstd.rs crate:std
 #[doc(keyword = "move")]
