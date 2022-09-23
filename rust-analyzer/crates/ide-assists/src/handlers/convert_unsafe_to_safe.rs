@@ -3,7 +3,7 @@ use crate::{
     AssistId, AssistKind,
 };
 
-use syntax::{SyntaxKind::INDEX_EXPR, ast::IndexExpr};
+use syntax::{SyntaxKind::INDEX_EXPR, ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt}};
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
@@ -48,24 +48,14 @@ pub enum UnsafePattern {
 }
 
 impl std::fmt::Display for UnsafePattern {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             UnsafePattern::UnitializedVec => write!(f, "set_len"),
         }
     }
 }
 
-// impl UnsafePattern {
-//     fn as_str(&self) -> &'static str {
-//         match self {
-//             UnsafePattern::set_len => "set_len",
-//         }
-//     }
-// }
-
-fn convert_to_auto_vec_initialization(acc: &mut Assists, each_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
-
-    let mcall = each_expr.parent().and_then(ast::MethodCallExpr::cast)?;
+fn generate_safevec_format(mcall: &MethodCallExpr) -> Option<String> {
 
     // Obtain the variable Expr that presents the buffer/vector
     let receiver = mcall.receiver()?;
@@ -78,21 +68,38 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, each_expr: &SyntaxNode,
 
     buf.push(';');
 
+    return Some(buf);
+
+}
+
+fn check_single_expr(target_expr: &ExprStmt) -> bool {
+
+    // Check if the unsafe bloack only contains one expr
+    if target_expr.syntax().prev_sibling().is_none() && target_expr.syntax().next_sibling().is_none() {
+        return true;
+    }
+    return false;
+}
+
+fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
+
+    let buf = if let Some(buffer) = generate_safevec_format(&mcall) {buffer} else { return None; };
+
     // Declare the target text range for modification.
     let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
 
-    let mut target = target_expr.syntax().text_range();
+    let mut target_range = target_expr.syntax().text_range();
+    if check_single_expr(&target_expr) {
+        target_range = unsafe_range;
+    }
 
-    if target_expr.syntax().prev_sibling().is_none() && target_expr.syntax().next_sibling().is_none() {
-        
-        target = unsafe_range;
-    } 
+    for target_expr in mcall.syntax().ancestors() {
 
-    for each_expr in mcall.syntax().ancestors() {
-
-        if each_expr.to_string().contains("Vec::with_capacity") {
+        if target_expr.to_string().contains("Vec::with_capacity") {
             
-            for iter in each_expr.descendants() {
+            for iter in target_expr.descendants() {
                 if iter.to_string() == "Vec::with_capacity" {
                     let prev_mcall = iter.parent().and_then(ast::Expr::cast)?;
 
@@ -103,9 +110,9 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, each_expr: &SyntaxNode,
                     acc.add(
                         AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
                         "Convert Unsafe to Safe",
-                        target,
+                        target_range,
                         |edit| {
-                            edit.delete(target);
+                            edit.delete(target_range);
                             edit.replace(let_target, buf)
                         },
                     );
@@ -119,9 +126,9 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, each_expr: &SyntaxNode,
 
 }
 
-fn convert_to_copy_within(acc: &mut Assists, each_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
+fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
 
-    let mcall = each_expr.parent().and_then(ast::CallExpr::cast)?;
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
     // let base;
 
@@ -157,12 +164,18 @@ fn convert_to_copy_within(acc: &mut Assists, each_expr: &SyntaxNode, unsafe_rang
     // println!("function expr: {:?}", args.syntax().to_string());
     
 
-    // dbg!(each_expr.parent());
+    // dbg!(target_expr.parent());
     return None;
 
 }
 
-pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+struct UnsafeBlockInfo {
+    unsafe_expr: BlockExpr,
+    unsafe_range: TextRange,
+}
+
+fn collect_unsafe_info(ctx: &AssistContext<'_>) -> Option<UnsafeBlockInfo> {
+
     // Detect the "unsafe" key word
     let unsafe_kw = ctx.find_token_syntax_at_offset(T![unsafe])?;
 
@@ -171,21 +184,30 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
 
     let unsafe_range = unsafe_expr.syntax().text_range();
 
-    // dbg!(unsafe_expr.syntax().parent());
+    return Some(UnsafeBlockInfo {unsafe_expr, unsafe_range});
+
+}
+
+pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+
+    let (unsafe_expr, unsafe_range) = 
+        if let Some(UnsafeBlockInfo {unsafe_expr, unsafe_range}) = collect_unsafe_info(ctx) { 
+            (unsafe_expr, unsafe_range) 
+        } else { return None; };
 
     // Iteration through the "unsafe" expressions' AST
-    for each_expr in unsafe_expr.syntax().descendants() {
+    for target_expr in unsafe_expr.syntax().descendants() {
 
         // Detect the first pattern "vec/buf declared, but without initialization" in unsafe code block
-        if each_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
+        if target_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
             // Convert first pattern to safe code by calling auto initialization function
-            convert_to_auto_vec_initialization(acc, &each_expr, unsafe_range);
+            convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range);
         }
 
         // Detect the second pattern "ptr::copy" in unsafe code block
-        // if each_expr.to_string() == "ptr::copy" {
+        // if target_expr.to_string() == "ptr::copy" {
         //     // Convert second pattern to safe code by calling "copy_within"
-        //     convert_to_copy_within(acc, &each_expr, unsafe_range);
+        //     convert_to_copy_within(acc, &target_expr, unsafe_range);
         // }
         
     }
@@ -196,7 +218,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
 
 #[cfg(test)]
 mod tests {
-    // use crate::tests::check_assist;
+    use crate::tests::check_assist;
 
     use super::*;
 
@@ -220,6 +242,66 @@ mod tests {
         let mut vec = vec![1,2,3,4,5,6];
 
         vec.copy_within(0..3, 3);
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn convert_vec_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let cap = 100;
+
+        let mut buffer = Vec::with_capacity(cap);
+
+        unsafe$0 {
+            buffer.set_len(cap); 
+            println!("Hello World!");
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let cap = 100;
+
+        let mut buffer = vec![0; cap];
+
+        unsafe$0 {
+            
+            println!("Hello World!");
+        }
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn convert_vec_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let cap = 100;
+
+        let mut buffer = Vec::with_capacity(cap);
+        unsafe$0 {
+            buffer.set_len(cap); 
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let cap = 100;
+
+        let mut buffer = vec![0; cap];
+        
     }
     "#,
             );
