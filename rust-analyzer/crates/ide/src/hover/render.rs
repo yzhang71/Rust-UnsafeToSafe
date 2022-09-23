@@ -258,7 +258,35 @@ pub(super) fn keyword(
 
                 let us_description = "Code Suggestion: Translating Unsafe To Safe".to_string();
                 let mut us_docs = String::new();
-                format_to!(us_docs, "```---      {};```", mcall.to_string());
+
+                for item in mcall.syntax().ancestors() {
+
+                    if item.to_string().contains("Vec::with_capacity") {
+            
+                        for iter in item.descendants() {
+                            if iter.to_string() == "Vec::with_capacity" {
+                                let prev_mcall = iter.parent().and_then(ast::Expr::cast)?;
+                
+                                let let_expr = prev_mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+                                format_to!(us_docs, "```---      {}```", let_expr.to_string());
+
+                                us_docs.push('\n');
+                                us_docs.push('\n');
+
+                                break;
+                                
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                let mut unsafe_vec: String = String::new();
+
+                format_to!(unsafe_vec, "```---      unsafe {{ {} }};```", mcall.to_string());
+
+                us_docs.push_str(&unsafe_vec);
 
                 us_docs.push('\n');
                 us_docs.push('\n');
