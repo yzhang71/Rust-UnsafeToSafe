@@ -19,9 +19,9 @@ use ide_assists::{
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
-    algo, ast, match_ast, AstNode, Direction,
+    algo, ast::{self, BlockExpr, MethodCallExpr}, match_ast, AstNode, Direction,
     SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW},
-    SyntaxToken, T,
+    SyntaxToken, T, SyntaxNode,
 };
 
 use crate::{
@@ -231,6 +231,69 @@ pub(super) fn deref_expr(
     Some(res)
 }
 
+fn format_suggestion_unitialized_vec(mcall: MethodCallExpr) -> Option<String> {
+
+    let mut us_docs = String::new();
+
+    for item in mcall.syntax().ancestors() {
+
+        if item.to_string().contains("Vec::with_capacity") {
+
+            for iter in item.descendants() {
+                if iter.to_string() == "Vec::with_capacity" {
+                    let prev_mcall = iter.parent().and_then(ast::Expr::cast)?;
+    
+                    let let_expr = prev_mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+                    format_to!(us_docs, "```---``` ~~```      {}```~~", let_expr.to_string());
+
+                    us_docs.push('\n');
+                    us_docs.push('\n');
+
+                    break;
+                    
+                }
+            }
+            break;
+        }
+    }
+
+    let mut unsafe_vec: String = String::new();
+
+    format_to!(unsafe_vec, "```---``` ~~```      unsafe {{ {} }};```~~", mcall.to_string());
+
+    us_docs.push_str(&unsafe_vec);
+
+    us_docs.push('\n');
+    us_docs.push('\n');
+
+    let mut safe_vec: String = String::new();
+
+    format_to!(safe_vec, "```+++``` ```      {}```", generate_safevec_format(&mcall)?.to_string());
+
+    us_docs.push_str(&safe_vec);
+
+    return Some(us_docs.to_string());
+
+
+}
+
+fn display_suggestion_uninitialized_vec(target_expr: SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+
+    let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
+
+    let us_description = "Code Suggestion: Translating Unsafe To Safe".to_string();
+
+    let us_docs = format_suggestion_unitialized_vec(mcall)?;
+
+    let markup = process_unsafe_display_text(
+        &markup(Some(us_docs), us_description, None)?,
+    );
+
+    return Some(HoverResult { markup, actions: actions.to_vec() });
+
+}
+
 pub(super) fn keyword(
     sema: &Semantics<'_, RootDatabase>,
     config: &HoverConfig,
@@ -252,55 +315,10 @@ pub(super) fn keyword(
 
         for target_expr in unsafe_expr.syntax().descendants() {
 
+            // Display code suggestion for uninitialized vec/buffer pattern
             if target_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
 
-                let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
-
-                let us_description = "Code Suggestion: Translating Unsafe To Safe".to_string();
-                let mut us_docs = String::new();
-
-                for item in mcall.syntax().ancestors() {
-
-                    if item.to_string().contains("Vec::with_capacity") {
-            
-                        for iter in item.descendants() {
-                            if iter.to_string() == "Vec::with_capacity" {
-                                let prev_mcall = iter.parent().and_then(ast::Expr::cast)?;
-                
-                                let let_expr = prev_mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
-
-                                format_to!(us_docs, "```---      {}```", let_expr.to_string());
-
-                                us_docs.push('\n');
-                                us_docs.push('\n');
-
-                                break;
-                                
-                            }
-                        }
-                        break;
-                    }
-                }
-
-                let mut unsafe_vec: String = String::new();
-
-                format_to!(unsafe_vec, "```---      unsafe {{ {} }};```", mcall.to_string());
-
-                us_docs.push_str(&unsafe_vec);
-
-                us_docs.push('\n');
-                us_docs.push('\n');
-            
-                let mut safe_vec: String = String::new();
-
-                format_to!(safe_vec, "```+++      {}```", generate_safevec_format(&mcall)?.to_string());
-
-                us_docs.push_str(&safe_vec);
-
-                let markup = process_unsafe_display_text(
-                    &markup(Some(us_docs), us_description, None)?,
-                );
-                return Some(HoverResult { markup, actions });
+                return display_suggestion_uninitialized_vec(target_expr, &actions);
             }
         }
     }
@@ -313,7 +331,7 @@ pub(super) fn keyword(
         &markup(Some(docs.into()), description, None)?,
         config,
     );
-    Some(HoverResult { markup, actions })
+    return Some(HoverResult { markup, actions });
 
 }
 

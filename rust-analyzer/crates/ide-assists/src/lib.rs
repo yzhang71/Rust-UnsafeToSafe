@@ -194,7 +194,7 @@ pub mod handlers {
     mod toggle_ignore;
     mod unmerge_use;
     mod unnecessary_async;
-    mod unwrap_block;
+    // mod unwrap_block;
     mod unwrap_result_return_type;
     mod wrap_return_type_in_result;
 
