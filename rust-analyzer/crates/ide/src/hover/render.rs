@@ -13,7 +13,7 @@ use ide_db::{
 };
 
 use ide_assists::{
-    handlers::convert_unsafe_to_safe::UnsafePattern,
+    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format}
 };
 
 use itertools::Itertools;
@@ -239,48 +239,43 @@ pub(super) fn keyword(
     if !token.kind().is_keyword() || !config.documentation.is_some() || !config.keywords {
         return None;
     }
-    
-    // Yuchen's Edit -> Detect unsafe keyword
-    if token.kind() == UNSAFE_KW {
-        let us_parent = token.parent()?;
-        let us_famous_defs = FamousDefs(sema, sema.scope(&us_parent)?.krate());
-    
-        let KeywordHint { description, keyword_mod, actions } = keyword_hints(sema, token, us_parent);
-
-        let doc_owner = find_std_module(&us_famous_defs, &keyword_mod)?;
-
-        let unsafe_expr = token.parent().and_then(ast::BlockExpr::cast)?;
-
-        for each_expr in unsafe_expr.syntax().descendants() {
-
-            if each_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
-                // Convert first pattern to safe code by calling auto initialization function
-                let us_description = "Unsafe code to Safe code Suggestion".to_string();
-                let us_docs = "Here is your safe code suggestion".to_string();
-                let markup = process_markup(
-                    sema.db,
-                    Definition::Module(doc_owner),
-                    &markup(Some(us_docs), us_description, None)?,
-                    config,
-                );
-                return Some(HoverResult { markup, actions });
-            }
-        }
-
-        let docs = doc_owner.attrs(sema.db).docs()?;
-        let markup = process_markup(
-            sema.db,
-            Definition::Module(doc_owner),
-            &markup(Some(docs.into()), description, None)?,
-            config,
-        );
-        return Some(HoverResult { markup, actions });
-    }
 
     let parent = token.parent()?;
     let famous_defs = FamousDefs(sema, sema.scope(&parent)?.krate());
 
     let KeywordHint { description, keyword_mod, actions } = keyword_hints(sema, token, parent);
+    
+    // Yuchen's Edit -> Detect unsafe keyword
+    if token.kind() == UNSAFE_KW {
+
+        let unsafe_expr = token.parent().and_then(ast::BlockExpr::cast)?;
+
+        for target_expr in unsafe_expr.syntax().descendants() {
+
+            if target_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
+
+                let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
+
+                let us_description = "Code Suggestion: Translating Unsafe To Safe".to_string();
+                let mut us_docs = String::new();
+                format_to!(us_docs, "```---      {};```", mcall.to_string());
+
+                us_docs.push('\n');
+                us_docs.push('\n');
+            
+                let mut safe_vec: String = String::new();
+
+                format_to!(safe_vec, "```+++      {}```", generate_safevec_format(&mcall)?.to_string());
+
+                us_docs.push_str(&safe_vec);
+
+                let markup = process_unsafe_display_text(
+                    &markup(Some(us_docs), us_description, None)?,
+                );
+                return Some(HoverResult { markup, actions });
+            }
+        }
+    }
 
     let doc_owner = find_std_module(&famous_defs, &keyword_mod)?;
     let docs = doc_owner.attrs(sema.db).docs()?;
@@ -349,6 +344,14 @@ pub(super) fn process_markup(
     } else {
         remove_links(markup)
     };
+    Markup::from(markup)
+}
+
+pub(super) fn process_unsafe_display_text(
+    markup: &Markup,
+) -> Markup {
+    let markup = markup.as_str();
+    let markup = markup.to_string();
     Markup::from(markup)
 }
 

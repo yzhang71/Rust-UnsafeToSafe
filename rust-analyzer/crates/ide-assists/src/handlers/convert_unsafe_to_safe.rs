@@ -55,7 +55,7 @@ impl std::fmt::Display for UnsafePattern {
     }
 }
 
-fn generate_safevec_format(mcall: &MethodCallExpr) -> Option<String> {
+pub fn generate_safevec_format(mcall: &MethodCallExpr) -> Option<String> {
 
     // Obtain the variable Expr that presents the buffer/vector
     let receiver = mcall.receiver()?;
@@ -64,9 +64,7 @@ fn generate_safevec_format(mcall: &MethodCallExpr) -> Option<String> {
 
     let mut buf = String::new();
 
-    format_to!(buf, "let mut {} = vec![0; {}]", receiver, closure_body);
-
-    buf.push(';');
+    format_to!(buf, "let mut {} = vec![0; {}];", receiver, closure_body);
 
     return Some(buf);
 
@@ -79,6 +77,36 @@ fn check_single_expr(target_expr: &ExprStmt) -> bool {
         return true;
     }
     return false;
+}
+
+fn modify_source_code(acc: &mut Assists, target_expr: &SyntaxNode, target_range: TextRange, buf: &String) -> Option<bool> {
+
+    if target_expr.to_string().contains("Vec::with_capacity") {
+            
+        for iter in target_expr.descendants() {
+            if iter.to_string() == "Vec::with_capacity" {
+                let prev_mcall = iter.parent().and_then(ast::Expr::cast)?;
+
+                let let_expr = prev_mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+                
+                let let_target = let_expr.syntax().text_range();
+                // Delete the "set_len" expression in unsafe code block and insert the auto initialized vec/buf
+                acc.add(
+                    AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
+                    "Convert Unsafe to Safe",
+                    target_range,
+                    |edit| {
+                        edit.delete(target_range);
+                        edit.replace(let_target, buf)
+                    },
+                );
+                return Some(true);
+            }
+        }
+    }
+
+    return Some(false);
+
 }
 
 fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
@@ -95,35 +123,14 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
         target_range = unsafe_range;
     }
 
-    for target_expr in mcall.syntax().ancestors() {
+    for iter in mcall.syntax().ancestors() {
 
-        if target_expr.to_string().contains("Vec::with_capacity") {
-            
-            for iter in target_expr.descendants() {
-                if iter.to_string() == "Vec::with_capacity" {
-                    let prev_mcall = iter.parent().and_then(ast::Expr::cast)?;
-
-                    let let_expr = prev_mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
-                    
-                    let let_target = let_expr.syntax().text_range();
-                    // Delete the "set_len" expression in unsafe code block and insert the auto initialized vec/buf
-                    acc.add(
-                        AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
-                        "Convert Unsafe to Safe",
-                        target_range,
-                        |edit| {
-                            edit.delete(target_range);
-                            edit.replace(let_target, buf)
-                        },
-                    );
-                    break;
-                }
-            }
+        if modify_source_code(acc, &iter, target_range, &buf)? == true {
             break;
         }
+        continue;
     }
     return None;
-
 }
 
 fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
@@ -301,7 +308,7 @@ mod tests {
         let cap = 100;
 
         let mut buffer = vec![0; cap];
-        
+
     }
     "#,
             );
