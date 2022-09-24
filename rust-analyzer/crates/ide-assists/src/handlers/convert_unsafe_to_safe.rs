@@ -83,7 +83,20 @@ fn check_single_expr(target_expr: &ExprStmt) -> bool {
     return false;
 }
 
-fn modify_source_code(acc: &mut Assists, target_expr: &SyntaxNode, target_range: TextRange, buf: &String) -> Option<bool> {
+fn delet_replace_source_code(acc: &mut Assists, let_target: TextRange, target_range: TextRange, buf: &String) {
+
+    acc.add(
+        AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
+        "Convert Unsafe to Safe",
+        target_range,
+        |edit| {
+            edit.delete(target_range);
+            edit.replace(let_target, buf)
+        },
+    );
+}
+
+fn modify_unsafe_vec_sc(acc: &mut Assists, target_expr: &SyntaxNode, target_range: TextRange, buf: &String) -> Option<bool> {
 
     if target_expr.to_string().contains("Vec::with_capacity") {
             
@@ -95,15 +108,7 @@ fn modify_source_code(acc: &mut Assists, target_expr: &SyntaxNode, target_range:
                 
                 let let_target = let_expr.syntax().text_range();
                 // Delete the "set_len" expression in unsafe code block and insert the auto initialized vec/buf
-                acc.add(
-                    AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
-                    "Convert Unsafe to Safe",
-                    target_range,
-                    |edit| {
-                        edit.delete(target_range);
-                        edit.replace(let_target, buf)
-                    },
-                );
+                delet_replace_source_code(acc, let_target, target_range, buf);
                 return Some(true);
             }
         }
@@ -129,7 +134,7 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
 
     for iter in mcall.syntax().ancestors() {
 
-        if modify_source_code(acc, &iter, target_range, &buf)? == true {
+        if modify_unsafe_vec_sc(acc, &iter, target_range, &buf)? == true {
             break;
         }
         continue;
@@ -183,6 +188,19 @@ fn collect_ptr_cpy_info(mcall: &CallExpr) -> Option<PtrCpyInfo> {
     return Some(PtrCpyInfo {src_expr, dst_expr});
 }
 
+fn delet_insert_source_code(acc: &mut Assists, target_range: TextRange, position: TextSize, new_buf: &String) {
+
+    acc.add(
+        AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
+        "Convert Unsafe to Safe",
+        target_range,
+        |edit| {
+            edit.delete(target_range);
+            edit.insert(position + TextSize::of('\n'), new_buf)
+        },
+    );
+}
+
 fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
@@ -204,7 +222,6 @@ fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
             "Convert Unsafe to Safe",
             target_range,
             |edit| {
-                // edit.delete(target_range);
                 edit.replace(target_range, buf)
             },
         );
@@ -219,17 +236,7 @@ fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
 
     format_to!(new_buf, "{}{}", indent_level, buf);
 
-    acc.add(
-        AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
-        "Convert Unsafe to Safe",
-        target_range,
-        |edit| {
-            edit.delete(target_range);
-            edit.insert(position + TextSize::of('\n'), new_buf)
-        },
-    );
-
-    // println!("safe verison: {:?}", buf);
+    delet_insert_source_code(acc, target_range, position, &new_buf);
 
     return None;
 
