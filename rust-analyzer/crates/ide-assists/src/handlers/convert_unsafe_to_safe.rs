@@ -1,9 +1,11 @@
+use std::fmt::write;
+
 use crate::{
     assist_context::{AssistContext, Assists},
     AssistId, AssistKind,
 };
 
-use syntax::{SyntaxKind::INDEX_EXPR, ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt}};
+use syntax::{SyntaxKind::INDEX_EXPR, ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr}};
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
@@ -45,12 +47,14 @@ use syntax::{
 
 pub enum UnsafePattern {
     UnitializedVec,
+    CopyWithin,
 }
 
 impl std::fmt::Display for UnsafePattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             UnsafePattern::UnitializedVec => write!(f, "set_len"),
+            UnsafePattern::CopyWithin => write!(f, "ptr::copy"),
         }
     }
 }
@@ -133,45 +137,69 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
     return None;
 }
 
+pub fn generate_copywithin_format(base_expr: String, start_pos: String, end_pos: String, count_expr: String) -> String {
+
+    let mut buf = String::new();
+
+    format_to!(buf, "{}.copy_within({}..{}, {});", base_expr, start_pos, end_pos, count_expr);
+
+    return buf;
+
+}
+
+struct CpyWithinInfo {
+    base_expr: String,
+    start_pos: String,
+    end_pos: String,
+    count_expr: String,
+}
+
+fn collect_cpy_within_info(mcall: &CallExpr, src_expr: IndexExpr, dst_expr: IndexExpr) -> Option<CpyWithinInfo> {
+
+    let count_expr = mcall.arg_list()?.args().nth(2)?.to_string();
+
+    let base_expr = src_expr.base()?.to_string();
+
+    let start_pos = src_expr.index()?.to_string();
+
+    let end_pos = dst_expr.index()?.to_string();
+
+    return Some(CpyWithinInfo {base_expr, start_pos, end_pos, count_expr});
+}
+
+struct PtrCpyInfo {
+    src_expr: IndexExpr,
+    dst_expr: IndexExpr,
+}
+
+fn collect_ptr_cpy_info(mcall: &CallExpr) -> Option<PtrCpyInfo> {
+
+    let src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?.children().nth(0)?)?;
+
+    let dst_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?.children().nth(0)?)?;
+
+    return Some(PtrCpyInfo {src_expr, dst_expr});
+}
+
 fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
-    // let base;
+    let PtrCpyInfo { src_expr, dst_expr} = collect_ptr_cpy_info(&mcall)?;
 
-    // let start_pos;
+    let CpyWithinInfo { base_expr, start_pos, end_pos, count_expr} = collect_cpy_within_info(&mcall, src_expr, dst_expr)?;
 
-    // let end_pos;
+    let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
 
-    // let offset;
-
-    for i in mcall.arg_list()?.args() {
-        println!("function expr: {:?}", i.syntax().to_string());
-        for j in i.syntax().children() {
-            println!("child expr: {:?}", j.to_string());
-            for x in j.children() {
-                if x.kind() == INDEX_EXPR {
-                    let y = ast::IndexExpr::cast(x)?;
-
-                    for a in y.to_string().split('[').nth(0) {
-             
-                        println!("child child expr: {:?}", a);
-
-                    }
-                }
-                
-                // dbg!(x);
-            }
-        
-        }
+    let mut target_range = target_expr.syntax().text_range();
+    if check_single_expr(&target_expr) {
+        target_range = unsafe_range;
     }
 
-    // let args = mcall.arg_list()?.args().next()?;
+    let buf = generate_copywithin_format(base_expr, start_pos, end_pos, count_expr);
 
-    // println!("function expr: {:?}", args.syntax().to_string());
-    
+    println!("safe verison: {:?}", buf);
 
-    // dbg!(target_expr.parent());
     return None;
 
 }
@@ -181,7 +209,7 @@ struct UnsafeBlockInfo {
     unsafe_range: TextRange,
 }
 
-fn collect_unsafe_info(ctx: &AssistContext<'_>) -> Option<UnsafeBlockInfo> {
+fn collect_unsafe_vec_info(ctx: &AssistContext<'_>) -> Option<UnsafeBlockInfo> {
 
     // Detect the "unsafe" key word
     let unsafe_kw = ctx.find_token_syntax_at_offset(T![unsafe])?;
@@ -197,10 +225,7 @@ fn collect_unsafe_info(ctx: &AssistContext<'_>) -> Option<UnsafeBlockInfo> {
 
 pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
 
-    let (unsafe_expr, unsafe_range) = 
-        if let Some(UnsafeBlockInfo {unsafe_expr, unsafe_range}) = collect_unsafe_info(ctx) { 
-            (unsafe_expr, unsafe_range) 
-        } else { return None; };
+    let UnsafeBlockInfo { unsafe_expr, unsafe_range} = collect_unsafe_vec_info(ctx)?;
 
     // Iteration through the "unsafe" expressions' AST
     for target_expr in unsafe_expr.syntax().descendants() {
@@ -212,10 +237,10 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
         }
 
         // Detect the second pattern "ptr::copy" in unsafe code block
-        // if target_expr.to_string() == "ptr::copy" {
-        //     // Convert second pattern to safe code by calling "copy_within"
-        //     convert_to_copy_within(acc, &target_expr, unsafe_range);
-        // }
+        if target_expr.to_string() == UnsafePattern::CopyWithin.to_string() {
+            // Convert second pattern to safe code by calling "copy_within"
+            convert_to_copy_within(acc, &target_expr, unsafe_range);
+        }
         
     }
 
