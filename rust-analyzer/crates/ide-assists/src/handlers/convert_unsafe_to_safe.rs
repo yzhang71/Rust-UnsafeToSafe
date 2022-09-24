@@ -1,11 +1,9 @@
-use std::fmt::write;
-
 use crate::{
     assist_context::{AssistContext, Assists},
     AssistId, AssistKind,
 };
 
-use syntax::{SyntaxKind::INDEX_EXPR, ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent}, TextSize, ted::Position};
+use syntax::{ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent}, TextSize};
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
@@ -142,7 +140,7 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
     return None;
 }
 
-pub fn generate_copywithin_format(base_expr: String, start_pos: String, end_pos: String, count_expr: String) -> String {
+pub fn generate_copywithin_string(base_expr: String, start_pos: String, end_pos: String, count_expr: String) -> String {
 
     let mut buf = String::new();
 
@@ -201,19 +199,27 @@ fn delet_insert_source_code(acc: &mut Assists, target_range: TextRange, position
     );
 }
 
-fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
-
-    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+pub fn generate_copywithin_format(mcall: &CallExpr) -> Option<String> {
 
     let PtrCpyInfo { src_expr, dst_expr} = collect_ptr_cpy_info(&mcall)?;
 
     let CpyWithinInfo { base_expr, start_pos, end_pos, count_expr} = collect_cpy_within_info(&mcall, src_expr, dst_expr)?;
 
+    let buf = generate_copywithin_string(base_expr, start_pos, end_pos, count_expr);
+
+    return Some(buf);
+
+}
+
+fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
     let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
 
     let mut target_range = target_expr.syntax().text_range();
 
-    let buf = generate_copywithin_format(base_expr, start_pos, end_pos, count_expr);
+    let buf = generate_copywithin_format(&mcall)?;
 
     if check_single_expr(&target_expr) {
         target_range = unsafe_range;

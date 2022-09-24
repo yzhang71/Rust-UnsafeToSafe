@@ -13,13 +13,13 @@ use ide_db::{
 };
 
 use ide_assists::{
-    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format}
+    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_copywithin_format}
 };
 
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
-    algo, ast::{self, BlockExpr, MethodCallExpr}, match_ast, AstNode, Direction,
+    algo, ast::{self, MethodCallExpr, CallExpr}, match_ast, AstNode, Direction,
     SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW},
     SyntaxToken, T, SyntaxNode,
 };
@@ -258,7 +258,7 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr) -> Option<String> {
         }
     }
 
-    let mut unsafe_vec: String = String::new();
+    let mut unsafe_vec = String::new();
 
     format_to!(unsafe_vec, "```---``` ~~```      unsafe {{ {} }};```~~", mcall.to_string());
 
@@ -267,9 +267,9 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr) -> Option<String> {
     us_docs.push('\n');
     us_docs.push('\n');
 
-    let mut safe_vec: String = String::new();
+    let mut safe_vec = String::new();
 
-    format_to!(safe_vec, "```+++``` ```      {}```", generate_safevec_format(&mcall)?.to_string());
+    format_to!(safe_vec, "**```+++```** **```      {}```**", generate_safevec_format(&mcall)?.to_string());
 
     us_docs.push_str(&safe_vec);
 
@@ -278,13 +278,48 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr) -> Option<String> {
 
 }
 
-fn display_suggestion_uninitialized_vec(target_expr: SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+fn display_suggestion_uninitialized_vec(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
 
     let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
 
     let us_description = "Code Suggestion: Translating Unsafe To Safe".to_string();
 
     let us_docs = format_suggestion_unitialized_vec(mcall)?;
+
+    let markup = process_unsafe_display_text(
+        &markup(Some(us_docs), us_description, None)?,
+    );
+
+    return Some(HoverResult { markup, actions: actions.to_vec() });
+
+}
+
+fn format_suggestion_ptr_copy(mcall: CallExpr) -> Option<String> {
+
+    let mut us_docs = String::new();
+
+    format_to!(us_docs, "```---``` ~~```      {};```~~", mcall.to_string());
+
+    us_docs.push('\n');
+    us_docs.push('\n');
+
+    let mut safe_copy_within = String::new();
+
+    format_to!(safe_copy_within, "**```+++```** **```      {}```**", generate_copywithin_format(&mcall)?);
+
+    us_docs.push_str(&safe_copy_within);
+
+    return Some(us_docs.to_string());
+
+}
+
+fn display_suggestion_ptr_copy(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    let us_description = "Code Suggestion: Translating Unsafe To Safe".to_string();
+
+    let us_docs = format_suggestion_ptr_copy(mcall)?;
 
     let markup = process_unsafe_display_text(
         &markup(Some(us_docs), us_description, None)?,
@@ -318,7 +353,13 @@ pub(super) fn keyword(
             // Display code suggestion for uninitialized vec/buffer pattern
             if target_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
 
-                return display_suggestion_uninitialized_vec(target_expr, &actions);
+                return display_suggestion_uninitialized_vec(&target_expr, &actions);
+            }
+
+            // Display code suggestion for ptr::copy pattern
+            if target_expr.to_string() == UnsafePattern::CopyWithin.to_string() {
+
+                return display_suggestion_ptr_copy(&target_expr, &actions);
             }
         }
     }
