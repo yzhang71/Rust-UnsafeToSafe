@@ -5,7 +5,7 @@ use crate::{
     AssistId, AssistKind,
 };
 
-use syntax::{SyntaxKind::INDEX_EXPR, ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr}};
+use syntax::{SyntaxKind::INDEX_EXPR, ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent}, TextSize, ted::Position};
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
@@ -143,6 +143,8 @@ pub fn generate_copywithin_format(base_expr: String, start_pos: String, end_pos:
 
     format_to!(buf, "{}.copy_within({}..{}, {});", base_expr, start_pos, end_pos, count_expr);
 
+    buf.push('\n');
+
     return buf;
 
 }
@@ -181,7 +183,7 @@ fn collect_ptr_cpy_info(mcall: &CallExpr) -> Option<PtrCpyInfo> {
     return Some(PtrCpyInfo {src_expr, dst_expr});
 }
 
-fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
+fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
@@ -192,13 +194,42 @@ fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
     let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
 
     let mut target_range = target_expr.syntax().text_range();
-    if check_single_expr(&target_expr) {
-        target_range = unsafe_range;
-    }
 
     let buf = generate_copywithin_format(base_expr, start_pos, end_pos, count_expr);
 
-    println!("safe verison: {:?}", buf);
+    if check_single_expr(&target_expr) {
+        target_range = unsafe_range;
+        acc.add(
+            AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
+            "Convert Unsafe to Safe",
+            target_range,
+            |edit| {
+                // edit.delete(target_range);
+                edit.replace(target_range, buf)
+            },
+        );
+        return None;
+    }
+
+    let position = unsafe_expr.syntax().prev_sibling()?.text_range().end();
+
+    let indent_level = unsafe_expr.indent_level();
+
+    let mut new_buf = String::new();
+
+    format_to!(new_buf, "{}{}", indent_level, buf);
+
+    acc.add(
+        AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
+        "Convert Unsafe to Safe",
+        target_range,
+        |edit| {
+            edit.delete(target_range);
+            edit.insert(position + TextSize::of('\n'), new_buf)
+        },
+    );
+
+    // println!("safe verison: {:?}", buf);
 
     return None;
 
@@ -239,7 +270,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
         // Detect the second pattern "ptr::copy" in unsafe code block
         if target_expr.to_string() == UnsafePattern::CopyWithin.to_string() {
             // Convert second pattern to safe code by calling "copy_within"
-            convert_to_copy_within(acc, &target_expr, unsafe_range);
+            convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr);
         }
         
     }
@@ -274,6 +305,37 @@ mod tests {
         let mut vec = vec![1,2,3,4,5,6];
 
         vec.copy_within(0..3, 3);
+
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn convert_ptr_copy_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+    
+        unsafe$0 {
+            ptr::copy(&vec[0] as *const i32, &mut vec[3] as *mut i32, 3);
+            println!("Hello World!");
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+        vec.copy_within(0..3, 3);
+
+        unsafe$0 {
+            
+            println!("Hello World!");
+        }
     }
     "#,
             );
