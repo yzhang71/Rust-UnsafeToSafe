@@ -13,7 +13,7 @@ use ide_db::{
 };
 
 use ide_assists::{
-    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_copywithin_format}
+    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_copywithin_format, generate_get_mut}
 };
 
 use itertools::Itertools;
@@ -278,11 +278,17 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr) -> Option<String> {
 
 }
 
+fn generate_description() -> String{
+
+    return "Code Suggestion: translating unsafe to safe code".to_string();
+
+}
+
 fn display_suggestion_uninitialized_vec(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
 
     let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
 
-    let us_description = "Code Suggestion: Translating Unsafe To Safe".to_string();
+    let us_description = generate_description();
 
     let us_docs = format_suggestion_unitialized_vec(mcall)?;
 
@@ -317,9 +323,46 @@ fn display_suggestion_ptr_copy(target_expr: &SyntaxNode, actions: &Vec<HoverActi
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
-    let us_description = "Code Suggestion: Translating Unsafe To Safe".to_string();
+    let us_description = generate_description();
 
     let us_docs = format_suggestion_ptr_copy(mcall)?;
+
+    let markup = process_unsafe_display_text(
+        &markup(Some(us_docs), us_description, None)?,
+    );
+
+    return Some(HoverResult { markup, actions: actions.to_vec() });
+
+}
+
+fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
+
+    let mut us_docs = String::new();
+
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    format_to!(us_docs, "```---``` ~~```      {}```~~", let_expr.to_string());
+
+    us_docs.push('\n');
+    us_docs.push('\n');
+
+    let mut safe_copy_within = String::new();
+
+    format_to!(safe_copy_within, "**```+++```** **```      {}```**", generate_get_mut(&mcall, &let_expr)?);
+
+    us_docs.push_str(&safe_copy_within);
+
+    return Some(us_docs.to_string());
+
+}
+
+fn display_suggestion_get_uncheck_mut(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+
+    let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
+
+    let us_description = generate_description();
+
+    let us_docs = format_suggestion_get_uncheck_mut(mcall)?;
 
     let markup = process_unsafe_display_text(
         &markup(Some(us_docs), us_description, None)?,
@@ -355,11 +398,16 @@ pub(super) fn keyword(
 
                 return display_suggestion_uninitialized_vec(&target_expr, &actions);
             }
-
             // Display code suggestion for ptr::copy pattern
             if target_expr.to_string() == UnsafePattern::CopyWithin.to_string() {
 
                 return display_suggestion_ptr_copy(&target_expr, &actions);
+            }
+            // Display code suggestion for get_unchecked/mut pattern
+            if target_expr.to_string() == UnsafePattern::GetUncheck.to_string() || 
+                target_expr.to_string() == UnsafePattern::GetUncheckMut.to_string() {
+
+                return display_suggestion_get_uncheck_mut(&target_expr, &actions);
             }
         }
     }
