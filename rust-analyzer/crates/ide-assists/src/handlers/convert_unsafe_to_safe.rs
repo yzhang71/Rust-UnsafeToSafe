@@ -215,28 +215,18 @@ pub fn generate_copywithin_format(mcall: &CallExpr) -> Option<String> {
 
 }
 
-fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+fn replace_source_code(acc: &mut Assists, target_range: TextRange, buf: &String) {
+    acc.add(
+        AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
+        "Convert Unsafe to Safe",
+        target_range,
+        |edit| {
+            edit.replace(target_range, buf)
+        },
+    );
+}
 
-    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
-
-    let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
-
-    let mut target_range = target_expr.syntax().text_range();
-
-    let buf = generate_copywithin_format(&mcall)?;
-
-    if check_single_expr(&target_expr) {
-        target_range = unsafe_range;
-        acc.add(
-            AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
-            "Convert Unsafe to Safe",
-            target_range,
-            |edit| {
-                edit.replace(target_range, buf)
-            },
-        );
-        return None;
-    }
+fn reindent_expr(unsafe_expr: &BlockExpr, acc: &mut Assists, target_range: TextRange, buf: &String) -> Option<()> {
 
     let position = unsafe_expr.syntax().prev_sibling()?.text_range().end();
 
@@ -252,7 +242,26 @@ fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
 
 }
 
-pub fn generate_get(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Option<String> {
+fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
+
+    let mut target_range = target_expr.syntax().text_range();
+
+    let buf = generate_copywithin_format(&mcall)?;
+
+    if check_single_expr(&target_expr) {
+        target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
+
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
+}
+
+pub fn generate_get_mut(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Option<String> {
 
     // Obtain the variable Expr that presents the buffer/vector
     let receiver = mcall.receiver()?;
@@ -288,59 +297,16 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    let buf = generate_get(&mcall, &let_expr)?;
+    let buf = generate_get_mut(&mcall, &let_expr)?;
 
     let mut target_range = let_expr.syntax().text_range();
     if check_single_let_expr(&let_expr) {
         target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
     }
 
-    acc.add(
-        AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
-        "Convert Unsafe to Safe",
-        target_range,
-        |edit| {
-            edit.replace(target_range, buf)
-        },
-    );
-
-    return None;
-    // }
-
-    // let index = vec.get_unchecked(5); 
-
-    // println!("mcall: {:?}", mcall.syntax().parent()?.to_string());
-
-    // let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
-
-    // let mut target_range = target_expr.syntax().text_range();
-
-    // let buf = generate_copywithin_format(&mcall)?;
-
-    // if check_single_expr(&target_expr) {
-    //     target_range = unsafe_range;
-    //     acc.add(
-    //         AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
-    //         "Convert Unsafe to Safe",
-    //         target_range,
-    //         |edit| {
-    //             edit.replace(target_range, buf)
-    //         },
-    //     );
-    //     return None;
-    // }
-
-    // let position = unsafe_expr.syntax().prev_sibling()?.text_range().end();
-
-    // let indent_level = unsafe_expr.indent_level();
-
-    // let mut new_buf = String::new();
-
-    // format_to!(new_buf, "{}{}", indent_level, buf);
-
-    // delet_insert_source_code(acc, target_range, position, &new_buf);
-
-    return None;
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
 
 }
 
@@ -410,7 +376,7 @@ mod tests {
         let mut vec = vec![1,2,3,4,5,6];
     
         unsafe$0 {
-            let index = vec.get_unchecked(5);    
+            let index = vec.get_unchecked_mut(5);    
             print!("Index: {:?} \n", index);
         }
     }
@@ -419,13 +385,11 @@ mod tests {
     fn main() {
 
         let mut vec = vec![1,2,3,4,5,6];
+        let index = vec.get_mut(5);
+        unsafe$0 {
 
-        let index = vec.get(5);
-
-        unsafe$0 { 
             print!("Index: {:?} \n", index);
         }
-
     }
     "#,
             );
@@ -441,7 +405,7 @@ mod tests {
         let mut vec = vec![1,2,3,4,5,6];
     
         unsafe$0 {
-            let index = vec.get_unchecked(5);    
+            let index = vec.get_unchecked_mut(5);    
         }
     }
     "#,
@@ -450,8 +414,7 @@ mod tests {
 
         let mut vec = vec![1,2,3,4,5,6];
 
-        let index = vec.get(5);
-
+        let index = vec.get_mut(5);
     }
     "#,
             );
