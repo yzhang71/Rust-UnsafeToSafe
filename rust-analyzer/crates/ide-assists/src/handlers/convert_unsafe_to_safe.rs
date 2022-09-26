@@ -3,7 +3,7 @@ use crate::{
     AssistId, AssistKind,
 };
 
-use syntax::{ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent}, TextSize};
+use syntax::{ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent, LetStmt}, TextSize};
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
@@ -46,6 +46,8 @@ use syntax::{
 pub enum UnsafePattern {
     UnitializedVec,
     CopyWithin,
+    GetUncheck,
+    GetUncheckMut,
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -53,6 +55,8 @@ impl std::fmt::Display for UnsafePattern {
         match self {
             UnsafePattern::UnitializedVec => write!(f, "set_len"),
             UnsafePattern::CopyWithin => write!(f, "ptr::copy"),
+            UnsafePattern::GetUncheck => write!(f, "get_unchecked"),
+            UnsafePattern::GetUncheckMut => write!(f, "get_unchecked_mut"),
         }
     }
 }
@@ -248,6 +252,98 @@ fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
 
 }
 
+pub fn generate_get(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Option<String> {
+
+    // Obtain the variable Expr that presents the buffer/vector
+    let receiver = mcall.receiver()?;
+
+    let closure_body = mcall.arg_list()?.args().exactly_one().ok()?;
+
+    let pat = let_expr.pat()?;
+
+    let mut buf = String::new();
+
+    if let_expr.initializer()?.to_string().contains("mut") {
+        format_to!(buf, "let {} = {}.get_mut({});", pat, receiver, closure_body);
+    } else {
+        format_to!(buf, "let {} = {}.get({});", pat, receiver, closure_body);
+    }
+
+    return Some(buf);
+
+}
+
+fn check_single_let_expr(target_expr: &LetStmt) -> bool {
+
+    // Check if the unsafe bloack only contains one expr
+    if target_expr.syntax().prev_sibling().is_none() && target_expr.syntax().next_sibling().is_none() {
+        return true;
+    }
+    return false;
+}
+
+fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
+
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    let buf = generate_get(&mcall, &let_expr)?;
+
+    let mut target_range = let_expr.syntax().text_range();
+    if check_single_let_expr(&let_expr) {
+        target_range = unsafe_range;
+    }
+
+    acc.add(
+        AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
+        "Convert Unsafe to Safe",
+        target_range,
+        |edit| {
+            edit.replace(target_range, buf)
+        },
+    );
+
+    return None;
+    // }
+
+    // let index = vec.get_unchecked(5); 
+
+    // println!("mcall: {:?}", mcall.syntax().parent()?.to_string());
+
+    // let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
+
+    // let mut target_range = target_expr.syntax().text_range();
+
+    // let buf = generate_copywithin_format(&mcall)?;
+
+    // if check_single_expr(&target_expr) {
+    //     target_range = unsafe_range;
+    //     acc.add(
+    //         AssistId("convert_unsafe_to_safe", AssistKind::RefactorRewrite),
+    //         "Convert Unsafe to Safe",
+    //         target_range,
+    //         |edit| {
+    //             edit.replace(target_range, buf)
+    //         },
+    //     );
+    //     return None;
+    // }
+
+    // let position = unsafe_expr.syntax().prev_sibling()?.text_range().end();
+
+    // let indent_level = unsafe_expr.indent_level();
+
+    // let mut new_buf = String::new();
+
+    // format_to!(new_buf, "{}{}", indent_level, buf);
+
+    // delet_insert_source_code(acc, target_range, position, &new_buf);
+
+    return None;
+
+}
+
 struct UnsafeBlockInfo {
     unsafe_expr: BlockExpr,
     unsafe_range: TextRange,
@@ -285,6 +381,12 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             // Convert second pattern to safe code by calling "copy_within"
             convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr);
         }
+
+        // Detect the third pattern "get_unchecked" or "get_unchecked_mut" in unsafe code block
+        if target_expr.to_string() == UnsafePattern::GetUncheck.to_string() || 
+            target_expr.to_string() == UnsafePattern::GetUncheckMut.to_string() {
+                convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr);
+            }
         
     }
 
@@ -297,6 +399,63 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn get_uncheckd_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+    
+        unsafe$0 {
+            let index = vec.get_unchecked(5);    
+            print!("Index: {:?} \n", index);
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+
+        let index = vec.get(5);
+
+        unsafe$0 { 
+            print!("Index: {:?} \n", index);
+        }
+
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn get_uncheckd_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+    
+        unsafe$0 {
+            let index = vec.get_unchecked(5);    
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+
+        let index = vec.get(5);
+
+    }
+    "#,
+            );
+    }
 
     #[test]
     fn convert_ptr_copy_1() {
