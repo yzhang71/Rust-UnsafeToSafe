@@ -330,7 +330,7 @@ pub fn generate_copy_from_slice_string(src_expr: IndexExpr, dst_expr: IndexExpr)
 
     let mut buf = String::new();
 
-    format_to!(buf, "{}.copy_from_slice(&{});", src_expr, dst_expr);
+    format_to!(buf, "{}.copy_from_slice(&{});", dst_expr, src_expr);
 
     buf.push('\n');
 
@@ -343,8 +343,6 @@ pub fn generate_copy_from_slice_format(mcall: &CallExpr) -> Option<String> {
     let CpyNonOverlapInfo { src_expr, dst_expr} = collect_cpy_nonoverlap_info(&mcall)?;
 
     let buf = generate_copy_from_slice_string(src_expr, dst_expr);
-
-    println!("buf: {:?}", buf);
 
     return Some(buf);
 }
@@ -359,14 +357,13 @@ fn convert_to_copy_from_slice(acc: &mut Assists, target_expr: &SyntaxNode, unsaf
 
     let buf = generate_copy_from_slice_format(&mcall)?;
 
-    // if check_single_expr(&target_expr) {
-    //     target_range = unsafe_range;
-    //     replace_source_code(acc, target_range, &buf);
-    //     return None;
-    // }
+    if check_single_expr(&target_expr) {
+        target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
 
-    // return reindent_expr(unsafe_expr, acc, target_range, &buf);
-    return None;
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
 
 }
 
@@ -453,7 +450,6 @@ mod tests {
 
         let src = vec![1, 2, 3, 4, 5, 6];
         let mut dst = vec![0; 6];
-
         dst[2..4].copy_from_slice(&src[2..4]);
     
         unsafe$0 {
@@ -487,6 +483,7 @@ mod tests {
         let mut dst = vec![0; 6];
 
         dst[2..4].copy_from_slice(&src[2..4]);
+
     }
     "#,
             );
