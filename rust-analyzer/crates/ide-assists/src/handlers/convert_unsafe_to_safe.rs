@@ -312,6 +312,64 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
 
 }
 
+struct CpyNonOverlapInfo {
+    src_expr: IndexExpr,
+    dst_expr: IndexExpr,
+}
+
+fn collect_cpy_nonoverlap_info(mcall: &CallExpr) -> Option<CpyNonOverlapInfo> {
+
+    let src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?)?;
+
+    let dst_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?)?;
+
+    return Some(CpyNonOverlapInfo {src_expr, dst_expr});
+}
+
+pub fn generate_copy_from_slice_string(src_expr: IndexExpr, dst_expr: IndexExpr) -> String {
+
+    let mut buf = String::new();
+
+    format_to!(buf, "{}.copy_from_slice(&{});", src_expr, dst_expr);
+
+    buf.push('\n');
+
+    return buf;
+
+}
+
+pub fn generate_copy_from_slice_format(mcall: &CallExpr) -> Option<String> {    
+
+    let CpyNonOverlapInfo { src_expr, dst_expr} = collect_cpy_nonoverlap_info(&mcall)?;
+
+    let buf = generate_copy_from_slice_string(src_expr, dst_expr);
+
+    println!("buf: {:?}", buf);
+
+    return Some(buf);
+}
+
+fn convert_to_copy_from_slice(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
+
+    let mut target_range = target_expr.syntax().text_range();
+
+    let buf = generate_copy_from_slice_format(&mcall)?;
+
+    // if check_single_expr(&target_expr) {
+    //     target_range = unsafe_range;
+    //     replace_source_code(acc, target_range, &buf);
+    //     return None;
+    // }
+
+    // return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    return None;
+
+}
+
 struct UnsafeBlockInfo {
     unsafe_expr: BlockExpr,
     unsafe_range: TextRange,
@@ -356,6 +414,12 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
                 convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr);
             }
         
+        // Detect the fourth pattern "ptr::copy_nonoverlapping" in unsafe code block
+        if target_expr.to_string() == UnsafePattern::CopyNonOverlap.to_string() {
+            // Convert fourth pattern to safe code by calling "copy_from_slice"
+            convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr);
+        }
+        
     }
 
     return None;
@@ -379,7 +443,7 @@ mod tests {
         let mut dst = vec![0; 6];
     
         unsafe$0 {
-            ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), src.len());
+            ptr::copy_nonoverlapping(src[2..4].as_ptr(), dst[2..4].as_mut_ptr(), src[2..4].len());
             println!("copied dst vector: {:?}", dst); 
         }
     }
@@ -390,7 +454,7 @@ mod tests {
         let src = vec![1, 2, 3, 4, 5, 6];
         let mut dst = vec![0; 6];
 
-        dst[..].copy_from_slice(&src[..]);
+        dst[2..4].copy_from_slice(&src[2..4]);
     
         unsafe$0 {
 
@@ -412,7 +476,7 @@ mod tests {
         let mut dst = vec![0; 6];
     
         unsafe$0 {
-            ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), src.len());
+            ptr::copy_nonoverlapping(src[2..4].as_ptr(), dst[2..4].as_mut_ptr(), src[2..4].len());
         }
     }
     "#,
@@ -422,7 +486,7 @@ mod tests {
         let src = vec![1, 2, 3, 4, 5, 6];
         let mut dst = vec![0; 6];
 
-        dst[..].copy_from_slice(&src[..]);
+        dst[2..4].copy_from_slice(&src[2..4]);
     }
     "#,
             );
