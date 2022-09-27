@@ -48,6 +48,7 @@ pub enum UnsafePattern {
     CopyWithin,
     GetUncheck,
     GetUncheckMut,
+    CopyNonOverlap,
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -57,6 +58,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::CopyWithin => write!(f, "ptr::copy"),
             UnsafePattern::GetUncheck => write!(f, "get_unchecked"),
             UnsafePattern::GetUncheckMut => write!(f, "get_unchecked_mut"),
+            UnsafePattern::CopyNonOverlap => write!(f, "ptr::copy_nonoverlapping"),
         }
     }
 }
@@ -365,6 +367,66 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn copy_nonoverlap_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let src = vec![1, 2, 3, 4, 5, 6];
+        let mut dst = vec![0; 6];
+    
+        unsafe$0 {
+            ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), src.len());
+            println!("copied dst vector: {:?}", dst); 
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let src = vec![1, 2, 3, 4, 5, 6];
+        let mut dst = vec![0; 6];
+
+        dst[..].copy_from_slice(&src[..]);
+    
+        unsafe$0 {
+
+            println!("copied dst vector: {:?}", dst); 
+        }
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn copy_nonoverlap_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let src = vec![1, 2, 3, 4, 5, 6];
+        let mut dst = vec![0; 6];
+    
+        unsafe$0 {
+            ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), src.len());
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let src = vec![1, 2, 3, 4, 5, 6];
+        let mut dst = vec![0; 6];
+
+        dst[..].copy_from_slice(&src[..]);
+    }
+    "#,
+            );
+    }
 
     #[test]
     fn get_uncheckd_1() {
