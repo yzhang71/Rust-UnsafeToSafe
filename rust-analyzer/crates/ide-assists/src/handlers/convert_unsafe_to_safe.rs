@@ -3,7 +3,7 @@ use crate::{
     AssistId, AssistKind,
 };
 
-use syntax::{ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent, LetStmt}, TextSize};
+use syntax::{ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent, LetStmt}, TextSize, Direction};
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
@@ -44,6 +44,7 @@ use syntax::{
 // ```
 
 pub enum UnsafePattern {
+    SetVecCapacity,
     UnitializedVec,
     CopyWithin,
     GetUncheck,
@@ -54,6 +55,7 @@ pub enum UnsafePattern {
 impl std::fmt::Display for UnsafePattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            UnsafePattern::SetVecCapacity => write!(f, "Vec::with_capacity"),
             UnsafePattern::UnitializedVec => write!(f, "set_len"),
             UnsafePattern::CopyWithin => write!(f, "ptr::copy"),
             UnsafePattern::GetUncheck => write!(f, "get_unchecked"),
@@ -100,29 +102,7 @@ fn delet_replace_source_code(acc: &mut Assists, let_target: TextRange, target_ra
     );
 }
 
-fn modify_unsafe_vec_sc(acc: &mut Assists, target_expr: &SyntaxNode, target_range: TextRange, buf: &String) -> Option<bool> {
-
-    if target_expr.to_string().contains("Vec::with_capacity") {
-            
-        for iter in target_expr.descendants() {
-            if iter.to_string() == "Vec::with_capacity" {
-                let prev_mcall = iter.parent().and_then(ast::Expr::cast)?;
-
-                let let_expr = prev_mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
-                
-                let let_target = let_expr.syntax().text_range();
-                // Delete the "set_len" expression in unsafe code block and insert the auto initialized vec/buf
-                delet_replace_source_code(acc, let_target, target_range, buf);
-                return Some(true);
-            }
-        }
-    }
-
-    return Some(false);
-
-}
-
-fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange) -> Option<()> {
+fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
 
@@ -136,13 +116,21 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
         target_range = unsafe_range;
     }
 
-    for iter in mcall.syntax().ancestors() {
+    for iter in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
 
-        if modify_unsafe_vec_sc(acc, &iter, target_range, &buf)? == true {
-            break;
+        if iter.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
+
+            let let_expr = ast::LetStmt::cast(iter)?;
+                
+            let let_target = let_expr.syntax().text_range();
+            // Delete the "set_len" expression in unsafe code block and insert the auto initialized vec/buf
+            delet_replace_source_code(acc, let_target, target_range, &buf);
+
+            return None;
+
         }
-        continue;
     }
+
     return None;
 }
 
@@ -367,6 +355,39 @@ fn convert_to_copy_from_slice(acc: &mut Assists, target_expr: &SyntaxNode, unsaf
 
 }
 
+pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> Option<UnsafePattern> {
+
+    if target_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
+        for backward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
+            if backward_slice.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
+                for forward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Next) {
+                    if forward_slice.to_string().contains("read") {
+                        return Some(UnsafePattern::UnitializedVec);
+                    }
+                }
+            }
+        }
+    }
+
+    if target_expr.to_string() == UnsafePattern::CopyWithin.to_string() {
+        return Some(UnsafePattern::CopyWithin);
+    }
+
+    if target_expr.to_string() == UnsafePattern::GetUncheck.to_string() {
+        return Some(UnsafePattern::GetUncheck);
+    }
+
+    if target_expr.to_string() == UnsafePattern::GetUncheckMut.to_string() {
+        return Some(UnsafePattern::GetUncheckMut);
+    }
+
+    if target_expr.to_string() == UnsafePattern::CopyNonOverlap.to_string() {
+        return Some(UnsafePattern::CopyNonOverlap);
+    }
+    return None;
+
+}
+
 struct UnsafeBlockInfo {
     unsafe_expr: BlockExpr,
     unsafe_range: TextRange,
@@ -393,29 +414,17 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
     // Iteration through the "unsafe" expressions' AST
     for target_expr in unsafe_expr.syntax().descendants() {
 
-        // Detect the first pattern "vec/buf declared, but without initialization" in unsafe code block
-        if target_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
-            // Convert first pattern to safe code by calling auto initialization function
-            convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range);
-        }
-
-        // Detect the second pattern "ptr::copy" in unsafe code block
-        if target_expr.to_string() == UnsafePattern::CopyWithin.to_string() {
-            // Convert second pattern to safe code by calling "copy_within"
-            convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr);
-        }
-
-        // Detect the third pattern "get_unchecked" or "get_unchecked_mut" in unsafe code block
-        if target_expr.to_string() == UnsafePattern::GetUncheck.to_string() || 
-            target_expr.to_string() == UnsafePattern::GetUncheckMut.to_string() {
-                convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr);
-            }
+        let unsafe_type = check_convert_type(&target_expr, &unsafe_expr);
         
-        // Detect the fourth pattern "ptr::copy_nonoverlapping" in unsafe code block
-        if target_expr.to_string() == UnsafePattern::CopyNonOverlap.to_string() {
-            // Convert fourth pattern to safe code by calling "copy_from_slice"
-            convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr);
-        }
+        match unsafe_type {
+            Some(UnsafePattern::UnitializedVec) => convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range, &unsafe_expr),
+            // Some(UnsafePattern::CopyWithin) => convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
+            // Some(UnsafePattern::GetUncheckMut) => convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
+            // Some(UnsafePattern::GetUncheck) => convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
+            // Some(UnsafePattern::CopyNonOverlap) => convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
+            None => continue,
+            _ => todo!(),
+        };
         
     }
 
@@ -642,6 +651,36 @@ mod tests {
         let cap = 100;
 
         let mut buffer = Vec::with_capacity(cap);
+
+        unsafe$0 {
+            buffer.set_len(cap); 
+        }
+        input.read_into(&mut buffer);
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let cap = 100;
+
+        let mut buffer = vec![0; cap];
+
+        input.read_into(&mut buffer);
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn convert_vec_3() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let cap = 100;
+
+        let mut buffer = Vec::with_capacity(cap);
         unsafe$0 {
             buffer.set_len(cap); 
         }
@@ -652,8 +691,11 @@ mod tests {
 
         let cap = 100;
 
-        let mut buffer = vec![0; cap];
+        let mut buffer = Vec::with_capacity(cap);
+        unsafe$0 {
 
+            buffer.set_len(cap); 
+        }
     }
     "#,
             );
