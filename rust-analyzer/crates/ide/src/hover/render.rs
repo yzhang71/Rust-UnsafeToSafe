@@ -13,14 +13,14 @@ use ide_db::{
 };
 
 use ide_assists::{
-    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_copywithin_format, generate_get_mut, generate_copy_from_slice_format, check_convert_type}
+    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, generate_copywithin_format, generate_get_mut, generate_copy_from_slice_format, check_convert_type}
 };
 
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
     algo, ast::{self, MethodCallExpr, CallExpr, BlockExpr}, match_ast, AstNode, Direction,
-    SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW},
+    SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW, STMT_LIST},
     SyntaxToken, T, SyntaxNode,
 };
 
@@ -246,17 +246,6 @@ fn generate_modify() -> String{
     return "Modified Code: \n\n".to_string();
 }
 
-fn generate_unsafe_head() -> String{
-
-    return "```---``` ~~```unsafe {```~~".to_string();
-}
-
-fn generate_unsafe_tail() -> String{
-
-    return "```---``` ~~```}```~~".to_string();
-}
-
-
 fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockExpr) -> Option<String> {
 
     let mut us_docs = String::new();
@@ -265,13 +254,20 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
 
     us_docs.push_str(&original);
 
-    for iter in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
+    let mut safe_vec = String::new();
+
+    let mut backward_list = unsafe_expr.syntax().siblings(Direction::Prev);
+
+    if unsafe_expr.syntax().parent()?.kind() != STMT_LIST {
+        backward_list = unsafe_expr.syntax().parent()?.siblings(Direction::Prev);
+    }
+
+
+    for iter in backward_list {
 
         if iter.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
 
             let let_expr = ast::LetStmt::cast(iter)?;
-                
-            let let_target = let_expr.syntax().text_range();
 
             format_to!(us_docs, "```---``` ~~```{}```~~", let_expr.to_string());
             // format_to!(us_docs, "```---``` ~~```      {}```~~", let_expr.to_string());
@@ -279,58 +275,41 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
             us_docs.push('\n');
             us_docs.push('\n');
 
+            format_to!(safe_vec, "**```+++```** **```{}```**", generate_safevec_format(&mcall)?.to_string());
+
+            break;
+        }
+
+        if iter.to_string().contains(&UnsafePattern::ReserveVec.to_string()) {
+
+            let expr_stmt = ast::ExprStmt::cast(iter)?;
+
+            format_to!(us_docs, "```---``` ~~```{}```~~", expr_stmt.to_string());
+            // format_to!(us_docs, "```---``` ~~```      {}```~~", let_expr.to_string());
+
+            us_docs.push('\n');
+            us_docs.push('\n');
+
+            format_to!(safe_vec, "**```+++```** **```{}```**", generate_resizevec_format(&mcall)?.to_string());
+
             break;
         }
     }
-
-    // for item in mcall.syntax().ancestors() {
-
-    //     if item.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
-
-    //         for iter in item.descendants() {
-    //             if iter.to_string() == UnsafePattern::SetVecCapacity.to_string() {
-    //                 let prev_mcall = iter.parent().and_then(ast::Expr::cast)?;
-    
-    //                 let let_expr = prev_mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
-
-    //                 format_to!(us_docs, "```---``` ~~```{}```~~", let_expr.to_string());
-    //                 // format_to!(us_docs, "```---``` ~~```      {}```~~", let_expr.to_string());
-
-    //                 us_docs.push('\n');
-    //                 us_docs.push('\n');
-
-    //                 break;
-                    
-    //             }
-    //         }
-    //         break;
-    //     }
-    // }
-
-    us_docs.push_str(&generate_unsafe_head());
 
     us_docs.push('\n');
     us_docs.push('\n');
 
     let mut unsafe_vec = String::new();
     // format_to!(unsafe_vec, "```---``` ~~```      unsafe {{ {} }};```~~", mcall.to_string());
-    format_to!(unsafe_vec, "```---``` ~~```\n``` ```\n``` ```{};```~~", mcall.to_string());
+    format_to!(unsafe_vec, "```---``` ~~```unsafe {{ {} }};```~~", mcall.to_string());
     us_docs.push_str(&unsafe_vec);
 
-    us_docs.push('\n');
-    us_docs.push('\n');
-
-    us_docs.push_str(&generate_unsafe_tail());
     us_docs.push('\n');
     us_docs.push('\n');
 
     let modify = generate_modify();
 
     us_docs.push_str(&modify);
-
-    let mut safe_vec = String::new();
-
-    format_to!(safe_vec, "**```+++```** **```{}```**", generate_safevec_format(&mcall)?.to_string());
 
     us_docs.push_str(&safe_vec);
 

@@ -3,7 +3,11 @@ use crate::{
     AssistId, AssistKind,
 };
 
-use syntax::{ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent, LetStmt}, TextSize, Direction};
+use syntax::{
+    ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent, LetStmt},
+    SyntaxKind::{STMT_LIST, EXPR_STMT}, 
+    TextSize, Direction
+};
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
@@ -45,6 +49,7 @@ use syntax::{
 
 pub enum UnsafePattern {
     SetVecCapacity,
+    ReserveVec,
     UnitializedVec,
     CopyWithin,
     GetUncheck,
@@ -56,6 +61,7 @@ impl std::fmt::Display for UnsafePattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             UnsafePattern::SetVecCapacity => write!(f, "Vec::with_capacity"),
+            UnsafePattern::ReserveVec => write!(f, "reserve"),
             UnsafePattern::UnitializedVec => write!(f, "set_len"),
             UnsafePattern::CopyWithin => write!(f, "ptr::copy"),
             UnsafePattern::GetUncheck => write!(f, "get_unchecked"),
@@ -75,6 +81,21 @@ pub fn generate_safevec_format(mcall: &MethodCallExpr) -> Option<String> {
     let mut buf = String::new();
 
     format_to!(buf, "let mut {} = vec![0; {}];", receiver, closure_body);
+
+    return Some(buf);
+
+}
+
+pub fn generate_resizevec_format(mcall: &MethodCallExpr) -> Option<String> {
+
+    // Obtain the variable Expr that presents the buffer/vector
+    let receiver = mcall.receiver()?;
+
+    let closure_body = mcall.arg_list()?.args().exactly_one().ok()?;
+
+    let mut buf = String::new();
+
+    format_to!(buf, "{}.resize({}, 0);", receiver, closure_body);
 
     return Some(buf);
 
@@ -108,20 +129,37 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
 
     let buf = if let Some(buffer) = generate_safevec_format(&mcall) {buffer} else { return None; };
 
-    // Declare the target text range for modification.
-    let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
+    let buf_resize = if let Some(buffer) = generate_resizevec_format(&mcall) {buffer} else { return None; };
 
-    let mut target_range = target_expr.syntax().text_range();
-    if check_single_expr(&target_expr) {
-        target_range = unsafe_range;
+    let mut target_range = unsafe_range;
+
+    if mcall.syntax().parent()?.kind() == EXPR_STMT {
+        // Declare the target text range for modification.
+        let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
+
+        target_range = target_expr.syntax().text_range();
+        if check_single_expr(&target_expr) {
+            target_range = unsafe_range;
+        }
     }
 
-    for iter in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
+    let mut backward_list = unsafe_expr.syntax().siblings(Direction::Prev);
+
+    if unsafe_expr.syntax().parent()?.kind() != STMT_LIST {
+        backward_list = unsafe_expr.syntax().parent()?.siblings(Direction::Prev);
+    }
+
+    // for iter in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
+    for iter in backward_list {
+
+        // println!("Iter expr: {:?}", iter.to_string());
+
+        // println!("Iter expr: {:?}", iter.kind);
 
         if iter.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
 
             let let_expr = ast::LetStmt::cast(iter)?;
-                
+
             let let_target = let_expr.syntax().text_range();
             // Delete the "set_len" expression in unsafe code block and insert the auto initialized vec/buf
             delet_replace_source_code(acc, let_target, target_range, &buf);
@@ -129,8 +167,18 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
             return None;
 
         }
-    }
 
+        if iter.to_string().contains(&UnsafePattern::ReserveVec.to_string()) {
+
+            let expr_stmt = ast::ExprStmt::cast(iter)?;
+
+            let expr_target = expr_stmt.syntax().text_range();
+            // Delete the "set_len" expression in unsafe code block and insert the auto initialized vec/buf
+            delet_replace_source_code(acc, expr_target, target_range, &buf_resize);
+
+            return None;
+        }
+    }
     return None;
 }
 
@@ -355,17 +403,24 @@ fn convert_to_copy_from_slice(acc: &mut Assists, target_expr: &SyntaxNode, unsaf
 
 }
 
+fn uninitialized_vec_analysis(unsafe_expr: &BlockExpr) -> Option<bool> {
+    // static analysis on unsafe expr's ancestors() and descendants()
+    for backward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
+        if backward_slice.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) ||
+            backward_slice.to_string().contains(&UnsafePattern::ReserveVec.to_string()) {
+            // for forward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Next) {
+            // }
+            return Some(true);
+        }
+    }
+    return Some(false);
+}
+
 pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> Option<UnsafePattern> {
 
     if target_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
-        for backward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
-            if backward_slice.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
-                for forward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Next) {
-                    if forward_slice.to_string().contains("read") {
-                        return Some(UnsafePattern::UnitializedVec);
-                    }
-                }
-            }
+        if uninitialized_vec_analysis(&unsafe_expr)? {
+            return Some(UnsafePattern::UnitializedVec);
         }
     }
 
@@ -417,7 +472,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
         let unsafe_type = check_convert_type(&target_expr, &unsafe_expr);
         
         match unsafe_type {
-            Some(UnsafePattern::UnitializedVec) => convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::UnitializedVec) => return convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::CopyWithin) => convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheckMut) => convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheck) => convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
@@ -623,6 +678,7 @@ mod tests {
             buffer.set_len(cap); 
             println!("Hello World!");
         }
+        println!("Hello World Again!");
     }
     "#,
                 r#"
@@ -636,6 +692,7 @@ mod tests {
             
             println!("Hello World!");
         }
+        println!("Hello World Again!");
     }
     "#,
             );
@@ -656,6 +713,7 @@ mod tests {
             buffer.set_len(cap); 
         }
         input.read_into(&mut buffer);
+        println!("Hello World Again!");
     }
     "#,
                 r#"
@@ -664,8 +722,9 @@ mod tests {
         let cap = 100;
 
         let mut buffer = vec![0; cap];
-
+        
         input.read_into(&mut buffer);
+        println!("Hello World Again!");
     }
     "#,
             );
@@ -678,24 +737,50 @@ mod tests {
             r#"
     fn main() {
 
-        let cap = 100;
+        let len = 100;
 
-        let mut buffer = Vec::with_capacity(cap);
-        unsafe$0 {
-            buffer.set_len(cap); 
-        }
+        let mut buf = Vec::with_capacity(len as usize); 
+        unsafe$0 { buf.set_len(len as usize) } 
     }
     "#,
                 r#"
     fn main() {
 
-        let cap = 100;
+        let len = 100;
 
-        let mut buffer = Vec::with_capacity(cap);
-        unsafe$0 {
+        let mut buf = vec![0; len as usize];
+    }
+    "#,
+            );
+    }
 
-            buffer.set_len(cap); 
-        }
+    #[test]
+    fn convert_vec_4() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let len = 100;
+
+        let mut buf = vec![0; 10];
+        
+        buf.reserve(len); 
+
+        unsafe$0 { 
+            buf.set_len(len); 
+        } 
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let len = 100;
+
+        let mut buf = vec![0; 10];
+
+        buf.resize(len, 0);
+        
     }
     "#,
             );
