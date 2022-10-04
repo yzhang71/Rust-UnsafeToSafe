@@ -60,7 +60,7 @@ pub enum UnsafePattern {
 impl std::fmt::Display for UnsafePattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UnsafePattern::SetVecCapacity => write!(f, "Vec::with_capacity"),
+            UnsafePattern::SetVecCapacity => write!(f, "with_capacity"),
             UnsafePattern::ReserveVec => write!(f, "reserve"),
             UnsafePattern::UnitializedVec => write!(f, "set_len"),
             UnsafePattern::CopyWithin => write!(f, "ptr::copy"),
@@ -151,10 +151,6 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
 
     // for iter in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
     for iter in backward_list {
-
-        // println!("Iter expr: {:?}", iter.to_string());
-
-        // println!("Iter expr: {:?}", iter.kind);
 
         if iter.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
 
@@ -456,7 +452,11 @@ fn collect_unsafe_vec_info(ctx: &AssistContext<'_>) -> Option<UnsafeBlockInfo> {
     // Collect the expressions within the "unsafe" block
     let unsafe_expr = unsafe_kw.parent().and_then(ast::BlockExpr::cast)?;
 
-    let unsafe_range = unsafe_expr.syntax().text_range();
+    let mut unsafe_range = unsafe_expr.syntax().text_range();
+
+    if unsafe_expr.syntax().parent()?.kind() != STMT_LIST {
+        unsafe_range = unsafe_expr.syntax().parent()?.text_range();
+    }
 
     return Some(UnsafeBlockInfo {unsafe_expr, unsafe_range});
 
@@ -739,8 +739,8 @@ mod tests {
 
         let len = 100;
 
-        let mut buf = Vec::with_capacity(len as usize); 
-        unsafe$0 { buf.set_len(len as usize) } 
+        let mut buf = Vec::<u32>::with_capacity(len as usize); 
+        unsafe$0 { buf.set_len(len as usize) }; 
     }
     "#,
                 r#"

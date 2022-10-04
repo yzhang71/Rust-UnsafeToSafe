@@ -269,7 +269,7 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
 
             let let_expr = ast::LetStmt::cast(iter)?;
 
-            format_to!(us_docs, "```---``` ~~```{}```~~", let_expr.to_string());
+            format_to!(us_docs, "**```---```** **~~```{}```~~**", let_expr.to_string());
             // format_to!(us_docs, "```---``` ~~```      {}```~~", let_expr.to_string());
 
             us_docs.push('\n');
@@ -284,7 +284,7 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
 
             let expr_stmt = ast::ExprStmt::cast(iter)?;
 
-            format_to!(us_docs, "```---``` ~~```{}```~~", expr_stmt.to_string());
+            format_to!(us_docs, "**```---```** **~~```{}```~~**", expr_stmt.to_string());
             // format_to!(us_docs, "```---``` ~~```      {}```~~", let_expr.to_string());
 
             us_docs.push('\n');
@@ -301,7 +301,7 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
 
     let mut unsafe_vec = String::new();
     // format_to!(unsafe_vec, "```---``` ~~```      unsafe {{ {} }};```~~", mcall.to_string());
-    format_to!(unsafe_vec, "```---``` ~~```unsafe {{ {} }};```~~", mcall.to_string());
+    format_to!(unsafe_vec, "**```---```** **~~```unsafe {{ {} }};```~~**", mcall.to_string());
     us_docs.push_str(&unsafe_vec);
 
     us_docs.push('\n');
