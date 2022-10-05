@@ -50,6 +50,7 @@ use syntax::{
 pub enum UnsafePattern {
     SetVecCapacity,
     ReserveVec,
+    WriteVec,
     UnitializedVec,
     CopyWithin,
     GetUncheck,
@@ -62,6 +63,7 @@ impl std::fmt::Display for UnsafePattern {
         match self {
             UnsafePattern::SetVecCapacity => write!(f, "with_capacity"),
             UnsafePattern::ReserveVec => write!(f, "reserve"),
+            UnsafePattern::WriteVec => write!(f, "write"),
             UnsafePattern::UnitializedVec => write!(f, "set_len"),
             UnsafePattern::CopyWithin => write!(f, "ptr::copy"),
             UnsafePattern::GetUncheck => write!(f, "get_unchecked"),
@@ -399,13 +401,23 @@ fn convert_to_copy_from_slice(acc: &mut Assists, target_expr: &SyntaxNode, unsaf
 
 }
 
-fn uninitialized_vec_analysis(unsafe_expr: &BlockExpr) -> Option<bool> {
+fn uninitialized_vec_analysis(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> Option<bool> {
     // static analysis on unsafe expr's ancestors() and descendants()
     for backward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
         if backward_slice.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) ||
             backward_slice.to_string().contains(&UnsafePattern::ReserveVec.to_string()) {
-            // for forward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Next) {
-            // }
+
+                let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
+
+                let receiver = mcall.receiver()?;
+
+                for forward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Next) {
+                    if forward_slice.to_string().contains(&receiver.to_string()) 
+                        && forward_slice.to_string().contains(&UnsafePattern::WriteVec.to_string()) {
+                        return  Some(false);
+                    }
+
+                }
             return Some(true);
         }
     }
@@ -415,7 +427,7 @@ fn uninitialized_vec_analysis(unsafe_expr: &BlockExpr) -> Option<bool> {
 pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> Option<UnsafePattern> {
 
     if target_expr.to_string() == UnsafePattern::UnitializedVec.to_string() {
-        if uninitialized_vec_analysis(&unsafe_expr)? {
+        if uninitialized_vec_analysis(&target_expr, &unsafe_expr)? {
             return Some(UnsafePattern::UnitializedVec);
         }
     }
@@ -740,7 +752,8 @@ mod tests {
         let len = 100;
 
         let mut buf = Vec::<u32>::with_capacity(len as usize); 
-        unsafe$0 { buf.set_len(len as usize) }; 
+        unsafe$0 { buf.set_len(len as usize) };
+    
     }
     "#,
                 r#"
