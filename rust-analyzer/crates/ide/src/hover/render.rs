@@ -338,14 +338,22 @@ fn format_suggestion_ptr_copy(mcall: CallExpr) -> Option<String> {
 
     let mut us_docs = String::new();
 
-    format_to!(us_docs, "```---``` ~~```      {};```~~", mcall.to_string());
+    let original = generate_original();
+
+    us_docs.push_str(&original);
+
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", mcall.to_string());
 
     us_docs.push('\n');
     us_docs.push('\n');
 
     let mut safe_copy_within = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```      {}```**", generate_copywithin_format(&mcall)?);
+    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_copywithin_format(&mcall)?);
+
+    let modify = generate_modify();
+
+    us_docs.push_str(&modify);
 
     us_docs.push_str(&safe_copy_within);
 
@@ -466,7 +474,7 @@ pub(super) fn keyword(
 
             match unsafe_type {
                 Some(UnsafePattern::UnitializedVec) => return display_suggestion_uninitialized_vec(&target_expr, &unsafe_expr, &actions),
-                // Some(UnsafePattern::CopyWithin) => return display_suggestion_ptr_copy(&target_expr, &actions),
+                Some(UnsafePattern::CopyWithin) => return display_suggestion_ptr_copy(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheckMut) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 // Some(UnsafePattern::CopyNonOverlap) => return display_suggestion_ptr_copy_nonoverlapping(&target_expr, &actions),

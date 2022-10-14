@@ -485,7 +485,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
         
         match unsafe_type {
             Some(UnsafePattern::UnitializedVec) => return convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range, &unsafe_expr),
-            // Some(UnsafePattern::CopyWithin) => convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::CopyWithin) => return convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheckMut) => convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheck) => convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::CopyNonOverlap) => convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
