@@ -184,7 +184,7 @@ pub fn generate_copywithin_string(base_expr: String, start_pos: String, end_pos:
 
     let mut buf = String::new();
 
-    format_to!(buf, "{}.copy_within({}..{}, {});", base_expr, start_pos, end_pos, count_expr);
+    format_to!(buf, "{}.copy_within({}..{}, {});", base_expr, start_pos, count_expr, end_pos);
 
     buf.push('\n');
 
@@ -655,7 +655,7 @@ mod tests {
         let mut vec = vec![1,2,3,4,5,6];
     
         unsafe$0 {
-            ptr::copy(&vec[0] as *const i32, &mut vec[3] as *mut i32, 3);
+            ptr::copy(&vec[0] as *const i32, &mut vec[2] as *mut i32, 4);
             println!("Hello World!");
         }
     }
@@ -664,7 +664,7 @@ mod tests {
     fn main() {
 
         let mut vec = vec![1,2,3,4,5,6];
-        vec.copy_within(0..3, 3);
+        vec.copy_within(0..4, 2);
 
         unsafe$0 {
             
@@ -675,6 +675,32 @@ mod tests {
             );
     }
 
+    #[test]
+    fn convert_ptr_copy_3() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+    
+        unsafe$0 {
+            ptr::copy(vec[0..].as_mut_ptr(), vec[3..].as_mut_ptr(), vec.len() + heap.size());
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+
+        vec.copy_within(0..3, vec.len() + heap.size());
+
+    }
+    "#,
+            );
+    }
+    
     #[test]
     fn convert_vec_1() {
         check_assist(
