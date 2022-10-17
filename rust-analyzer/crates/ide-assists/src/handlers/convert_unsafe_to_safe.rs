@@ -5,7 +5,7 @@ use crate::{
 
 use syntax::{
     ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent, LetStmt},
-    SyntaxKind::{STMT_LIST, EXPR_STMT}, 
+    SyntaxKind::{STMT_LIST, EXPR_STMT, INDEX_EXPR}, 
     TextSize, Direction
 };
 use itertools::Itertools;
@@ -205,9 +205,9 @@ fn collect_cpy_within_info(mcall: &CallExpr, src_expr: IndexExpr, dst_expr: Inde
 
     let base_expr = src_expr.base()?.to_string();
 
-    let start_pos = src_expr.index()?.to_string();
+    let start_pos = src_expr.index()?.to_string().trim_matches('.').to_string();
 
-    let end_pos = dst_expr.index()?.to_string();
+    let end_pos = dst_expr.index()?.to_string().trim_matches('.').to_string();
 
     return Some(CpyWithinInfo {base_expr, start_pos, end_pos, count_expr});
 }
@@ -219,9 +219,19 @@ struct PtrCpyInfo {
 
 fn collect_ptr_cpy_info(mcall: &CallExpr) -> Option<PtrCpyInfo> {
 
-    let src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?.children().nth(0)?)?;
+    let src_expr;
+    if mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?.kind() == INDEX_EXPR {
+        src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?)?;
+    } else {
+        src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?.children().nth(0)?)?;
+    }
 
-    let dst_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?.children().nth(0)?)?;
+    let dst_expr;
+    if mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?.kind() == INDEX_EXPR {
+        dst_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?)?;
+    } else {
+        dst_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?.children().nth(0)?)?;
+    }
 
     return Some(PtrCpyInfo {src_expr, dst_expr});
 }
@@ -683,9 +693,11 @@ mod tests {
     fn main() {
 
         let mut vec = vec![1,2,3,4,5,6];
+
+        let dst = vec.len() + heap.size();
     
         unsafe$0 {
-            ptr::copy(vec[0..].as_mut_ptr(), vec[3..].as_mut_ptr(), vec.len() + heap.size());
+            ptr::copy(vec[0..].as_mut_ptr(), vec[3..].as_mut_ptr(), dst);
         }
     }
     "#,
@@ -694,7 +706,9 @@ mod tests {
 
         let mut vec = vec![1,2,3,4,5,6];
 
-        vec.copy_within(0..3, vec.len() + heap.size());
+        let dst = vec.len() + heap.size();
+
+        vec.copy_within(0..dst, 3);
 
     }
     "#,
