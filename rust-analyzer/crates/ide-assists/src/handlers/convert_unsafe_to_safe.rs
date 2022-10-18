@@ -5,7 +5,7 @@ use crate::{
 
 use syntax::{
     ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent, LetStmt},
-    SyntaxKind::{STMT_LIST, EXPR_STMT, INDEX_EXPR}, 
+    SyntaxKind::{STMT_LIST, EXPR_STMT, INDEX_EXPR, LET_STMT, PATH_EXPR}, 
     TextSize, Direction
 };
 use itertools::Itertools;
@@ -212,30 +212,6 @@ fn collect_cpy_within_info(mcall: &CallExpr, src_expr: IndexExpr, dst_expr: Inde
     return Some(CpyWithinInfo {base_expr, start_pos, end_pos, count_expr});
 }
 
-struct PtrCpyInfo {
-    src_expr: IndexExpr,
-    dst_expr: IndexExpr,
-}
-
-fn collect_ptr_cpy_info(mcall: &CallExpr) -> Option<PtrCpyInfo> {
-
-    let src_expr;
-    if mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?.kind() == INDEX_EXPR {
-        src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?)?;
-    } else {
-        src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?.children().nth(0)?)?;
-    }
-
-    let dst_expr;
-    if mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?.kind() == INDEX_EXPR {
-        dst_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?)?;
-    } else {
-        dst_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?.children().nth(0)?)?;
-    }
-
-    return Some(PtrCpyInfo {src_expr, dst_expr});
-}
-
 fn delet_insert_source_code(acc: &mut Assists, target_range: TextRange, position: TextSize, new_buf: &String) {
 
     acc.add(
@@ -249,9 +225,56 @@ fn delet_insert_source_code(acc: &mut Assists, target_range: TextRange, position
     );
 }
 
-pub fn generate_copywithin_format(mcall: &CallExpr) -> Option<String> {
+fn collect_ptrcpy_path_info(mcall: &CallExpr, index: usize, unsafe_expr: &BlockExpr) -> Option<IndexExpr> {
+    let src_expr;
 
-    let PtrCpyInfo { src_expr, dst_expr} = collect_ptr_cpy_info(&mcall)?;
+    let mut backward_list = unsafe_expr.syntax().siblings(Direction::Prev);
+
+    if unsafe_expr.syntax().parent()?.kind() != STMT_LIST {
+        backward_list = unsafe_expr.syntax().parent()?.siblings(Direction::Prev);
+    }
+
+    for backward_slice in backward_list {
+        if backward_slice.to_string().contains(&mcall.arg_list()?.args().nth(index)?.to_string()) && backward_slice.kind() == LET_STMT {
+            let src_def = ast::LetStmt::cast(backward_slice)?;
+            if src_def.syntax().last_child()?.children().nth(0)?.kind() == INDEX_EXPR {
+                src_expr = ast::IndexExpr::cast(src_def.syntax().last_child()?.children().nth(0)?)?;
+                return Some(src_expr);
+            } else {
+                src_expr = ast::IndexExpr::cast(src_def.syntax().last_child()?.children().nth(0)?.children().nth(0)?)?;
+                return Some(src_expr);
+            }
+        }
+    }
+    None
+}
+
+fn collect_ptrcpy_expr_info(mcall: &CallExpr, index: usize) -> Option<IndexExpr> {
+    let src_expr;
+
+    if mcall.arg_list()?.args().nth(index)?.syntax().children().nth(0)?.kind() == INDEX_EXPR {
+        src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(index)?.syntax().children().nth(0)?)?;
+    } else {
+        src_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(index)?.syntax().children().nth(0)?.children().nth(0)?)?;
+    }
+    return Some(src_expr);
+}
+
+pub fn generate_copywithin_format(mcall: &CallExpr, unsafe_expr: &BlockExpr) -> Option<String> {
+
+    let src_expr;
+    if mcall.arg_list()?.args().nth(0)?.syntax().kind() == PATH_EXPR {
+        src_expr = collect_ptrcpy_path_info(&mcall, 0, &unsafe_expr)?;
+    } else {
+        src_expr = collect_ptrcpy_expr_info(&mcall, 0)?;
+    }
+
+    let dst_expr;
+    if mcall.arg_list()?.args().nth(1)?.syntax().kind() == PATH_EXPR {
+        dst_expr = collect_ptrcpy_path_info(&mcall, 1, &unsafe_expr)?;
+    } else {
+        dst_expr = collect_ptrcpy_expr_info(&mcall, 1)?;
+    }
 
     let CpyWithinInfo { base_expr, start_pos, end_pos, count_expr} = collect_cpy_within_info(&mcall, src_expr, dst_expr)?;
 
@@ -274,7 +297,13 @@ fn replace_source_code(acc: &mut Assists, target_range: TextRange, buf: &String)
 
 fn reindent_expr(unsafe_expr: &BlockExpr, acc: &mut Assists, target_range: TextRange, buf: &String) -> Option<()> {
 
-    let position = unsafe_expr.syntax().prev_sibling()?.text_range().end();
+    let position;
+
+    if unsafe_expr.syntax().prev_sibling().is_none() {
+        position = unsafe_expr.syntax().parent()?.prev_sibling()?.text_range().end();
+    } else {
+        position = unsafe_expr.syntax().prev_sibling()?.text_range().end();
+    }
 
     let indent_level = unsafe_expr.indent_level();
 
@@ -296,7 +325,7 @@ fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
 
     let mut target_range = target_expr.syntax().text_range();
 
-    let buf = generate_copywithin_format(&mcall)?;
+    let buf = generate_copywithin_format(&mcall, &unsafe_expr)?;
 
     if check_single_expr(&target_expr) {
         target_range = unsafe_range;
@@ -496,9 +525,9 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
         match unsafe_type {
             Some(UnsafePattern::UnitializedVec) => return convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CopyWithin) => return convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
-            // Some(UnsafePattern::GetUncheckMut) => convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
-            // Some(UnsafePattern::GetUncheck) => convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
-            // Some(UnsafePattern::CopyNonOverlap) => convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
+            // Some(UnsafePattern::CopyNonOverlap) => return convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
+            // Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
+            // Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
         };
@@ -637,10 +666,16 @@ mod tests {
     fn main() {
 
         let mut vec = vec![1,2,3,4,5,6];
+
+        let src = vec[0..].as_mut_ptr();
+
+        let dst = vec[2..].as_mut_ptr();
     
         unsafe$0 {
-            ptr::copy(&vec[0] as *const i32, &mut vec[3] as *mut i32, 3);
+            ptr::copy(src, dst, 4);
+            println!("Hello World!");
         }
+        let mut n = 1;
     }
     "#,
                 r#"
@@ -648,8 +683,18 @@ mod tests {
 
         let mut vec = vec![1,2,3,4,5,6];
 
-        vec.copy_within(0..3, 3);
+        let src = vec[0..].as_mut_ptr();
 
+        let dst = vec[2..].as_mut_ptr();
+
+        vec.copy_within(0..4, 2);
+
+        unsafe$0 {
+            
+            println!("Hello World!");
+        }
+
+        let mut n = 1;
     }
     "#,
             );
@@ -668,6 +713,8 @@ mod tests {
             ptr::copy(&vec[0] as *const i32, &mut vec[2] as *mut i32, 4);
             println!("Hello World!");
         }
+
+        let mut n = 1;
     }
     "#,
                 r#"
@@ -680,6 +727,8 @@ mod tests {
             
             println!("Hello World!");
         }
+    
+        let mut n = 1;
     }
     "#,
             );
