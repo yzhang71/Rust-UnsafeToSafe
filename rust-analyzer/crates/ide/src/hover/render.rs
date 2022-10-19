@@ -383,14 +383,14 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    format_to!(us_docs, "```---``` ~~```      {}```~~", let_expr.to_string());
+    format_to!(us_docs, "**```---```** **~~```{}```~~**", let_expr.to_string());
 
     us_docs.push('\n');
     us_docs.push('\n');
 
     let mut safe_copy_within = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```      {}```**", generate_get_mut(&mcall, &let_expr)?);
+    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_get_mut(&mcall, &let_expr)?);
 
     us_docs.push_str(&safe_copy_within);
 
@@ -418,14 +418,14 @@ fn format_suggestion_ptr_copy_nonoverlapping(mcall: CallExpr) -> Option<String> 
 
     let mut us_docs = String::new();
 
-    format_to!(us_docs, "```---``` ~~```      {};```~~", mcall.to_string());
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", mcall.to_string());
 
     us_docs.push('\n');
     us_docs.push('\n');
 
     let mut safe_copy_within = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```      {}```**", generate_copy_from_slice_format(&mcall)?);
+    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_copy_from_slice_format(&mcall)?);
 
     us_docs.push_str(&safe_copy_within);
 
@@ -475,9 +475,9 @@ pub(super) fn keyword(
             match unsafe_type {
                 Some(UnsafePattern::UnitializedVec) => return display_suggestion_uninitialized_vec(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::CopyWithin) => return display_suggestion_ptr_copy(&target_expr, &unsafe_expr, &actions),
+                Some(UnsafePattern::CopyNonOverlap) => return display_suggestion_ptr_copy_nonoverlapping(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheckMut) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
-                // Some(UnsafePattern::CopyNonOverlap) => return display_suggestion_ptr_copy_nonoverlapping(&target_expr, &actions),
                 None => continue,
                 _ => todo!(),
             };

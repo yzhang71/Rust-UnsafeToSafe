@@ -388,6 +388,7 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
 struct CpyNonOverlapInfo {
     src_expr: IndexExpr,
     dst_expr: IndexExpr,
+    count: String,
 }
 
 fn collect_cpy_nonoverlap_info(mcall: &CallExpr) -> Option<CpyNonOverlapInfo> {
@@ -396,26 +397,51 @@ fn collect_cpy_nonoverlap_info(mcall: &CallExpr) -> Option<CpyNonOverlapInfo> {
 
     let dst_expr = ast::IndexExpr::cast(mcall.arg_list()?.args().nth(1)?.syntax().children().nth(0)?)?;
 
-    return Some(CpyNonOverlapInfo {src_expr, dst_expr});
+    let count = mcall.arg_list()?.args().nth(2)?.to_string();
+
+    return Some(CpyNonOverlapInfo {src_expr, dst_expr, count});
 }
 
-pub fn generate_copy_from_slice_string(src_expr: IndexExpr, dst_expr: IndexExpr) -> String {
+fn format_index_expr(expr_index: &IndexExpr, count: &String) -> Option<String> {
+
+    let index = expr_index.index()?.to_string();
+
+    let index_content = index.split("..");
+
+    let vec: Vec<&str> = index_content.collect();
+
+    let lhs = vec[0];
+    let rhs = vec[1];
 
     let mut buf = String::new();
 
-    format_to!(buf, "{}.copy_from_slice(&{});", dst_expr, src_expr);
+    if lhs.is_empty() {
+        format_to!(buf, "{}[{}..{}]", expr_index.base()?, lhs.to_string(), count);
+    } else {
+        format_to!(buf, "{}[{}..{} + {}]", expr_index.base()?, lhs.to_string(), lhs.to_string(), count);
+    }
+
+    return Some(buf);
+
+}
+
+pub fn generate_copy_from_slice_string(src_expr: IndexExpr, dst_expr: IndexExpr, count: String) -> Option<String> {
+
+    let mut buf = String::new();
+
+    format_to!(buf, "{}.copy_from_slice(&{});", format_index_expr(&dst_expr, &count)?, format_index_expr(&src_expr, &count)?);
 
     buf.push('\n');
 
-    return buf;
+    return Some(buf);
 
 }
 
 pub fn generate_copy_from_slice_format(mcall: &CallExpr) -> Option<String> {    
 
-    let CpyNonOverlapInfo { src_expr, dst_expr} = collect_cpy_nonoverlap_info(&mcall)?;
+    let CpyNonOverlapInfo { src_expr, dst_expr, count} = collect_cpy_nonoverlap_info(&mcall)?;
 
-    let buf = generate_copy_from_slice_string(src_expr, dst_expr);
+    let buf = generate_copy_from_slice_string(src_expr, dst_expr, count)?;
 
     return Some(buf);
 }
@@ -525,7 +551,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
         match unsafe_type {
             Some(UnsafePattern::UnitializedVec) => return convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CopyWithin) => return convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
-            // Some(UnsafePattern::CopyNonOverlap) => return convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::CopyNonOverlap) => return convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
@@ -553,9 +579,11 @@ mod tests {
 
         let src = vec![1, 2, 3, 4, 5, 6];
         let mut dst = vec![0; 6];
+
+        let len = 2
     
         unsafe$0 {
-            ptr::copy_nonoverlapping(src[2..4].as_ptr(), dst[2..4].as_mut_ptr(), src[2..4].len());
+            ptr::copy_nonoverlapping(src[1..].as_ptr(), dst[2..].as_mut_ptr(), len);
             println!("copied dst vector: {:?}", dst); 
         }
     }
@@ -565,7 +593,9 @@ mod tests {
 
         let src = vec![1, 2, 3, 4, 5, 6];
         let mut dst = vec![0; 6];
-        dst[2..4].copy_from_slice(&src[2..4]);
+
+        let len = 2
+        dst[2..2 + len].copy_from_slice(&src[1..1 + len]);
     
         unsafe$0 {
 
@@ -597,7 +627,7 @@ mod tests {
         let src = vec![1, 2, 3, 4, 5, 6];
         let mut dst = vec![0; 6];
 
-        dst[2..4].copy_from_slice(&src[2..4]);
+        dst[2..2 + src[2..4].len()].copy_from_slice(&src[2..2 + src[2..4].len()]);
 
     }
     "#,
