@@ -154,7 +154,7 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
     // for iter in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
     for iter in backward_list {
 
-        if iter.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
+        if iter.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) && iter.to_string().contains(&mcall.receiver()?.to_string()) {
 
             let let_expr = ast::LetStmt::cast(iter)?;
 
@@ -166,7 +166,7 @@ fn convert_to_auto_vec_initialization(acc: &mut Assists, target_expr: &SyntaxNod
 
         }
 
-        if iter.to_string().contains(&UnsafePattern::ReserveVec.to_string()) {
+        if iter.to_string().contains(&UnsafePattern::ReserveVec.to_string()) && iter.to_string().contains(&mcall.receiver()?.to_string()) {
 
             let expr_stmt = ast::ExprStmt::cast(iter)?;
 

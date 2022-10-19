@@ -265,7 +265,7 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
 
     for iter in backward_list {
 
-        if iter.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) {
+        if iter.to_string().contains(&UnsafePattern::SetVecCapacity.to_string()) && iter.to_string().contains(&mcall.receiver()?.to_string()) {
 
             let let_expr = ast::LetStmt::cast(iter)?;
 
@@ -280,7 +280,7 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
             break;
         }
 
-        if iter.to_string().contains(&UnsafePattern::ReserveVec.to_string()) {
+        if iter.to_string().contains(&UnsafePattern::ReserveVec.to_string()) && iter.to_string().contains(&mcall.receiver()?.to_string()) {
 
             let expr_stmt = ast::ExprStmt::cast(iter)?;
 
