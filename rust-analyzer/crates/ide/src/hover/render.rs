@@ -414,7 +414,7 @@ fn display_suggestion_get_uncheck_mut(target_expr: &SyntaxNode, actions: &Vec<Ho
 
 }
 
-fn format_suggestion_ptr_copy_nonoverlapping(mcall: CallExpr) -> Option<String> {
+fn format_suggestion_ptr_copy_nonoverlapping(mcall: CallExpr, unsafe_expr: &BlockExpr) -> Option<String> {
 
     let mut us_docs = String::new();
 
@@ -425,7 +425,7 @@ fn format_suggestion_ptr_copy_nonoverlapping(mcall: CallExpr) -> Option<String> 
 
     let mut safe_copy_within = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_copy_from_slice_format(&mcall)?);
+    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_copy_from_slice_format(&mcall, &unsafe_expr)?);
 
     us_docs.push_str(&safe_copy_within);
 
@@ -433,13 +433,13 @@ fn format_suggestion_ptr_copy_nonoverlapping(mcall: CallExpr) -> Option<String> 
 
 }
 
-fn display_suggestion_ptr_copy_nonoverlapping(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+fn display_suggestion_ptr_copy_nonoverlapping(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr, actions: &Vec<HoverAction>) -> Option<HoverResult> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
     let us_description = generate_description();
 
-    let us_docs = format_suggestion_ptr_copy_nonoverlapping(mcall)?;
+    let us_docs = format_suggestion_ptr_copy_nonoverlapping(mcall, &unsafe_expr)?;
 
     let markup = process_unsafe_display_text(
         &markup(Some(us_docs), us_description, None)?,
@@ -475,7 +475,7 @@ pub(super) fn keyword(
             match unsafe_type {
                 Some(UnsafePattern::UnitializedVec) => return display_suggestion_uninitialized_vec(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::CopyWithin) => return display_suggestion_ptr_copy(&target_expr, &unsafe_expr, &actions),
-                Some(UnsafePattern::CopyNonOverlap) => return display_suggestion_ptr_copy_nonoverlapping(&target_expr, &actions),
+                Some(UnsafePattern::CopyNonOverlap) => return display_suggestion_ptr_copy_nonoverlapping(&target_expr, &unsafe_expr, &actions),
                 // Some(UnsafePattern::GetUncheckMut) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 None => continue,
