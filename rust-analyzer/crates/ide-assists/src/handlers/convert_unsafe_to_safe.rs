@@ -56,6 +56,7 @@ pub enum UnsafePattern {
     GetUncheck,
     GetUncheckMut,
     CopyNonOverlap,
+    CStringFromVec,
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -69,6 +70,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::GetUncheck => write!(f, "get_unchecked"),
             UnsafePattern::GetUncheckMut => write!(f, "get_unchecked_mut"),
             UnsafePattern::CopyNonOverlap => write!(f, "ptr::copy_nonoverlapping"),
+            UnsafePattern::CStringFromVec => write!(f, "CString::from_vec_unchecked"),
         }
     }
 }
@@ -496,7 +498,25 @@ fn convert_to_copy_from_slice(acc: &mut Assists, target_expr: &SyntaxNode, unsaf
     }
 
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
+}
 
+fn convert_to_cstring_new(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
+
+    let mut target_range = target_expr.syntax().text_range();
+
+    let buf = generate_copy_from_slice_format(&mcall, &unsafe_expr)?;
+
+    if check_single_expr(&target_expr) {
+        target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
+
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
 fn uninitialized_vec_analysis(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> Option<bool> {
@@ -545,6 +565,10 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
     if target_expr.to_string() == UnsafePattern::CopyNonOverlap.to_string() {
         return Some(UnsafePattern::CopyNonOverlap);
     }
+
+    if target_expr.to_string() == UnsafePattern::CStringFromVec.to_string() {
+        return Some(UnsafePattern::CStringFromVec);
+    }
     return None;
 
 }
@@ -585,6 +609,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::UnitializedVec) => return convert_to_auto_vec_initialization(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CopyWithin) => return convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CopyNonOverlap) => return convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::CStringFromVec) => return convert_to_cstring_new(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
@@ -602,6 +627,63 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn from_vec_unchecked_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let raw = b"Hello, World!".to_vec();
+
+        unsafe$0 {
+            let c_string = CString::from_vec_unchecked(raw);
+            println!("The C String: {:?}", c_string);
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let raw = b"Hello, World!".to_vec();
+
+        let c_string = CString::new(raw).unwrap();
+    
+        unsafe$0 {
+
+            println!("The C String: {:?}", c_string); 
+        }
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn from_vec_unchecked_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let raw = b"Hello, World!".to_vec();
+
+        unsafe$0 {
+            let c_string = CString::from_vec_unchecked(raw);
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let raw = b"Hello, World!".to_vec();
+
+        let c_string = CString::new(raw).unwrap();
+    
+    }
+    "#,
+            );
+    }
 
     #[test]
     fn copy_nonoverlap_1() {
