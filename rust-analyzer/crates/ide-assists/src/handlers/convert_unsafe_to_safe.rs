@@ -500,17 +500,38 @@ fn convert_to_copy_from_slice(acc: &mut Assists, target_expr: &SyntaxNode, unsaf
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
+pub fn generate_cstring_new_string(pat: String, input_argument: String) -> String {
+
+    let mut buf = String::new();
+
+    format_to!(buf, "let {} = CString::new({}).unwrap();", pat, input_argument);
+
+    buf.push('\n');
+
+    return buf;
+
+}
+
+pub fn generate_cstring_new_format(pat: String, mcall: &CallExpr) -> Option<String> {    
+
+    let input_argument = mcall.arg_list()?.args().nth(0)?.to_string();
+
+    let buf = generate_cstring_new_string(pat, input_argument);
+
+    return Some(buf);
+}
+
 fn convert_to_cstring_new(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
-    let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
+    let target_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
     let mut target_range = target_expr.syntax().text_range();
 
-    let buf = generate_copy_from_slice_format(&mcall, &unsafe_expr)?;
+    let buf = generate_cstring_new_format(target_expr.pat()?.to_string(), &mcall)?;
 
-    if check_single_expr(&target_expr) {
+    if check_single_let_expr(&target_expr) {
         target_range = unsafe_range;
         replace_source_code(acc, target_range, &buf);
         return None;
@@ -638,7 +659,7 @@ mod tests {
         let raw = b"Hello, World!".to_vec();
 
         unsafe$0 {
-            let c_string = CString::from_vec_unchecked(raw);
+            let c_string = CString::from_vec_unchecked(raw);s
             println!("The C String: {:?}", c_string);
         }
     }
@@ -647,12 +668,11 @@ mod tests {
     fn main() {
 
         let raw = b"Hello, World!".to_vec();
-
         let c_string = CString::new(raw).unwrap();
     
         unsafe$0 {
 
-            println!("The C String: {:?}", c_string); 
+            println!("The C String: {:?}", c_string);
         }
     }
     "#,
