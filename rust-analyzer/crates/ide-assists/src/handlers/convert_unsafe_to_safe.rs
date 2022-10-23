@@ -659,7 +659,7 @@ mod tests {
         let raw = b"Hello, World!".to_vec();
 
         unsafe$0 {
-            let c_string = CString::from_vec_unchecked(raw);s
+            let c_string = CString::from_vec_unchecked(raw);
             println!("The C String: {:?}", c_string);
         }
     }

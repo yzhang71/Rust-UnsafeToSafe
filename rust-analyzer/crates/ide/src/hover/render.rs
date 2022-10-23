@@ -13,7 +13,7 @@ use ide_db::{
 };
 
 use ide_assists::{
-    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, generate_copywithin_format, generate_get_mut, generate_copy_from_slice_format, check_convert_type}
+    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, generate_copywithin_format, generate_get_mut, generate_copy_from_slice_format, check_convert_type, generate_cstring_new_format}
 };
 
 use itertools::Itertools;
@@ -449,6 +449,44 @@ fn display_suggestion_ptr_copy_nonoverlapping(target_expr: &SyntaxNode, unsafe_e
 
 }
 
+fn format_suggestion_cstring_from_vec_unchecked(mcall: CallExpr) -> Option<String> {
+
+    let mut us_docs = String::new();
+
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", let_expr.to_string());
+
+    us_docs.push('\n');
+    us_docs.push('\n');
+
+    let mut safe_cstring_new = String::new();
+
+    format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_cstring_new_format(let_expr.pat()?.to_string(), &mcall)?);
+
+    us_docs.push_str(&safe_cstring_new);
+
+    return Some(us_docs.to_string());
+
+}
+
+
+fn display_suggestion_cstring_from_vec_unchecked(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    let us_description = generate_description();
+
+    let us_docs = format_suggestion_cstring_from_vec_unchecked(mcall)?;
+
+    let markup = process_unsafe_display_text(
+        &markup(Some(us_docs), us_description, None)?,
+    );
+
+    return Some(HoverResult { markup, actions: actions.to_vec() });
+
+}
+
 pub(super) fn keyword(
     sema: &Semantics<'_, RootDatabase>,
     config: &HoverConfig,
@@ -476,6 +514,7 @@ pub(super) fn keyword(
                 Some(UnsafePattern::UnitializedVec) => return display_suggestion_uninitialized_vec(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::CopyWithin) => return display_suggestion_ptr_copy(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::CopyNonOverlap) => return display_suggestion_ptr_copy_nonoverlapping(&target_expr, &unsafe_expr, &actions),
+                Some(UnsafePattern::CStringFromVec) => return display_suggestion_cstring_from_vec_unchecked(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheckMut) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 None => continue,
