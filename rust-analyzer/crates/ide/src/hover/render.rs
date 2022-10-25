@@ -20,7 +20,7 @@ use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
     algo, ast::{self, MethodCallExpr, CallExpr, BlockExpr}, match_ast, AstNode, Direction,
-    SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW, STMT_LIST},
+    SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW, STMT_LIST, BIN_EXPR},
     SyntaxToken, T, SyntaxNode,
 };
 
@@ -452,6 +452,24 @@ fn display_suggestion_ptr_copy_nonoverlapping(target_expr: &SyntaxNode, unsafe_e
 fn format_suggestion_cstring_from_vec_unchecked(mcall: CallExpr) -> Option<String> {
 
     let mut us_docs = String::new();
+
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", target_expr.to_string());
+    
+        us_docs.push('\n');
+        us_docs.push('\n');
+    
+        let mut safe_cstring_new = String::new();
+    
+        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_cstring_new_format(target_expr.lhs()?.to_string(), &mcall, false)?);
+        
+        us_docs.push_str(&safe_cstring_new);
+    
+        return Some(us_docs.to_string());
+    }
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
