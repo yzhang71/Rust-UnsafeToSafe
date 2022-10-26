@@ -538,10 +538,6 @@ fn convert_to_cstring_new(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
-    // println!("unsafe: {:?}", unsafe_expr.syntax().descendants().last()?.to_string());
-
-    // println!("unsafe: {:?}", unsafe_expr.syntax().last_child()?.to_string());
-
     if mcall.syntax().parent()?.kind() == BIN_EXPR {
         let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
 
@@ -766,7 +762,6 @@ mod tests {
 
             println!("The C String: {:?}", c_string);
         }
-
     }
     "#,
             );

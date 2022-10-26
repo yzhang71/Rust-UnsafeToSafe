@@ -480,7 +480,7 @@ fn format_suggestion_cstring_from_vec_unchecked(mcall: CallExpr) -> Option<Strin
 
     let mut safe_cstring_new = String::new();
 
-    format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_cstring_new_format(let_expr.pat()?.to_string(), &mcall, false)?);
+    format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_cstring_new_format(let_expr.pat()?.to_string(), &mcall, true)?);
 
     us_docs.push_str(&safe_cstring_new);
 
