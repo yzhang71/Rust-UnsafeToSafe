@@ -57,6 +57,7 @@ pub enum UnsafePattern {
     GetUncheckMut,
     CopyNonOverlap,
     CStringFromVec,
+    CStringLength,
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -71,6 +72,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::GetUncheckMut => write!(f, "get_unchecked_mut"),
             UnsafePattern::CopyNonOverlap => write!(f, "ptr::copy_nonoverlapping"),
             UnsafePattern::CStringFromVec => write!(f, "CString::from_vec_unchecked"),
+            UnsafePattern::CStringLength => write!(f, "libc::strlen"),
         }
     }
 }
@@ -568,6 +570,66 @@ fn convert_to_cstring_new(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
+pub fn generate_bytes_len_string(pat: String, input_argument: String, let_sign: bool) -> String {
+
+    let mut buf = String::new();
+
+    if let_sign {
+        format_to!(buf, "let {} = {}.as_bytes().len();", pat, input_argument);
+    } else {
+        format_to!(buf, "{} = {}.as_bytes().len();", pat, input_argument);
+    }
+
+    buf.push('\n');
+
+    return buf;
+
+}
+
+pub fn generate_bytes_len_format(pat: String, mcall: &CallExpr, let_sign: bool) -> Option<String> {    
+
+    let input_argument = mcall.arg_list()?.args().nth(0)?.syntax().first_child()?.to_string();
+
+    let buf = generate_bytes_len_string(pat, input_argument, let_sign);
+
+    return Some(buf);
+}
+
+
+fn convert_to_bytes_len(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+    
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        let mut target_range = target_expr.syntax().parent()?.text_range();
+
+        let buf = generate_bytes_len_format(target_expr.lhs()?.to_string(), &mcall, false)?;
+        
+        if check_single_bin_expr(&target_expr)? == true {
+            target_range = unsafe_range;
+            replace_source_code(acc, target_range, &buf);
+            return None;
+        }
+        return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    }
+        
+    let target_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    let mut target_range = target_expr.syntax().text_range();
+
+    let buf = generate_bytes_len_format(target_expr.pat()?.to_string(), &mcall, true)?;
+
+    if check_single_let_expr(&target_expr) {
+        target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
+
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
+}
+
 fn uninitialized_vec_analysis(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> Option<bool> {
     // static analysis on unsafe expr's ancestors() and descendants()
     for backward_slice in unsafe_expr.syntax().parent()?.siblings(Direction::Prev) {
@@ -618,6 +680,10 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
     if target_expr.to_string() == UnsafePattern::CStringFromVec.to_string() {
         return Some(UnsafePattern::CStringFromVec);
     }
+
+    if target_expr.to_string() == UnsafePattern::CStringLength.to_string() {
+        return Some(UnsafePattern::CStringLength);
+    }
     return None;
 
 }
@@ -659,6 +725,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::CopyWithin) => return convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CopyNonOverlap) => return convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CStringFromVec) => return convert_to_cstring_new(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::CStringLength) => return convert_to_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
@@ -766,6 +833,81 @@ mod tests {
     "#,
             );
     }
+
+    #[test]
+    fn cstring_len_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let raw = b"Hello, World!".to_vec();
+
+        let c_string = CString::new(raw).unwrap();
+
+        unsafe$0 {
+            let length = libc::strlen(c_string.as_ptr());
+            println!("The C String: {:?}", length);
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let raw = b"Hello, World!".to_vec();
+
+        let c_string = CString::new(raw).unwrap();
+        let length = c_string.as_bytes().len();
+
+        unsafe$0 {
+
+            println!("The C String: {:?}", length);
+        }
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn cstring_len_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let raw = b"Hello, World!".to_vec();
+
+        let c_string = CString::new(raw).unwrap();
+
+        let length;
+
+        unsafe$0 {
+            length = libc::strlen(c_string.as_ptr());
+            println!("The C String: {:?}", length);
+        }
+        println!("The C String: {:?}", length);
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let raw = b"Hello, World!".to_vec();
+
+        let c_string = CString::new(raw).unwrap();
+
+        let length;
+        length = c_string.as_bytes().len();
+
+        unsafe$0 {
+
+            println!("The C String: {:?}", length);
+        }
+        println!("The C String: {:?}", length);
+    }
+    "#,
+            );
+    }
+    
 
     #[test]
     fn copy_nonoverlap_1() {
