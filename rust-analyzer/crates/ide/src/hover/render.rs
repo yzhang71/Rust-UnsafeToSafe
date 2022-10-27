@@ -13,7 +13,9 @@ use ide_db::{
 };
 
 use ide_assists::{
-    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, generate_copywithin_format, generate_get_mut, generate_copy_from_slice_format, check_convert_type, generate_cstring_new_format}
+    handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, 
+        generate_copywithin_format, generate_get_mut, generate_copy_from_slice_format, check_convert_type, 
+        generate_cstring_new_format, generate_bytes_len_format}
 };
 
 use itertools::Itertools;
@@ -518,11 +520,11 @@ fn format_suggestion_cstring_bytes_len(mcall: CallExpr) -> Option<String> {
         us_docs.push('\n');
         us_docs.push('\n');
     
-        let mut safe_cstring_new = String::new();
+        let mut safe_cstring_bytes_len = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_bytes_len_format(target_expr.lhs()?.to_string(), &mcall, false)?);
+        format_to!(safe_cstring_bytes_len, "**```+++```** **```{}```**", generate_bytes_len_format(target_expr.lhs()?.to_string(), &mcall, false)?);
         
-        us_docs.push_str(&safe_cstring_new);
+        us_docs.push_str(&safe_cstring_bytes_len);
     
         return Some(us_docs.to_string());
     }
@@ -534,11 +536,11 @@ fn format_suggestion_cstring_bytes_len(mcall: CallExpr) -> Option<String> {
     us_docs.push('\n');
     us_docs.push('\n');
 
-    let mut safe_cstring_new = String::new();
+    let mut safe_cstring_bytes_len = String::new();
 
-    format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_bytes_len_format(let_expr.pat()?.to_string(), &mcall, true)?);
+    format_to!(safe_cstring_bytes_len, "**```+++```** **```{}```**", generate_bytes_len_format(let_expr.pat()?.to_string(), &mcall, true)?);
 
-    us_docs.push_str(&safe_cstring_new);
+    us_docs.push_str(&safe_cstring_bytes_len);
 
     return Some(us_docs.to_string());
 
