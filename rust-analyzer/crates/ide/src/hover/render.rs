@@ -505,6 +505,63 @@ fn display_suggestion_cstring_from_vec_unchecked(target_expr: &SyntaxNode, actio
 
 }
 
+fn format_suggestion_cstring_bytes_len(mcall: CallExpr) -> Option<String> {
+
+    let mut us_docs = String::new();
+
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", target_expr.to_string());
+    
+        us_docs.push('\n');
+        us_docs.push('\n');
+    
+        let mut safe_cstring_new = String::new();
+    
+        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_bytes_len_format(target_expr.lhs()?.to_string(), &mcall, false)?);
+        
+        us_docs.push_str(&safe_cstring_new);
+    
+        return Some(us_docs.to_string());
+    }
+
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", let_expr.to_string());
+
+    us_docs.push('\n');
+    us_docs.push('\n');
+
+    let mut safe_cstring_new = String::new();
+
+    format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_bytes_len_format(let_expr.pat()?.to_string(), &mcall, true)?);
+
+    us_docs.push_str(&safe_cstring_new);
+
+    return Some(us_docs.to_string());
+
+}
+
+fn display_suggestion_cstring_bytes_len(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    let us_description = generate_description();
+
+    let us_docs = format_suggestion_cstring_bytes_len(mcall)?;
+
+    let markup = process_unsafe_display_text(
+        &markup(Some(us_docs), us_description, None)?,
+    );
+
+    return Some(HoverResult { markup, actions: actions.to_vec() });
+
+}
+
+
+
 pub(super) fn keyword(
     sema: &Semantics<'_, RootDatabase>,
     config: &HoverConfig,
@@ -533,6 +590,7 @@ pub(super) fn keyword(
                 Some(UnsafePattern::CopyWithin) => return display_suggestion_ptr_copy(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::CopyNonOverlap) => return display_suggestion_ptr_copy_nonoverlapping(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::CStringFromVec) => return display_suggestion_cstring_from_vec_unchecked(&target_expr, &actions),
+                Some(UnsafePattern::CStringLength) => return display_suggestion_cstring_bytes_len(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheckMut) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 // Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 None => continue,

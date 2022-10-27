@@ -19,7 +19,7 @@ use syntax::{
     SyntaxNode, TextRange, T,
 };
 
-// Assist: convert_while_to_loop
+// Assist: convert_unsafe_to_safe
 //
 // Replace unsafe code with safe version.
 //
@@ -596,7 +596,7 @@ pub fn generate_bytes_len_format(pat: String, mcall: &CallExpr, let_sign: bool) 
 }
 
 
-fn convert_to_bytes_len(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+fn convert_to_cstring_bytes_len(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
     
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
@@ -725,7 +725,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::CopyWithin) => return convert_to_copy_within(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CopyNonOverlap) => return convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CStringFromVec) => return convert_to_cstring_new(acc, &target_expr, unsafe_range, &unsafe_expr),
-            Some(UnsafePattern::CStringLength) => return convert_to_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::CStringLength) => return convert_to_cstring_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
