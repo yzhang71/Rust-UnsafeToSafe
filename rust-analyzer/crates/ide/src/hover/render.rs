@@ -14,7 +14,7 @@ use ide_db::{
 
 use ide_assists::{
     handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, 
-        generate_copywithin_format, generate_get_mut, generate_copy_from_slice_format, check_convert_type, 
+        generate_copywithin_format, generate_let_get_mut, generate_copy_from_slice_format, check_convert_type, 
         generate_cstring_new_format, generate_bytes_len_format}
 };
 
@@ -385,14 +385,14 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    format_to!(us_docs, "**```---```** **~~```{}```~~**", let_expr.to_string());
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", let_expr.to_string());
 
     us_docs.push('\n');
     us_docs.push('\n');
 
     let mut safe_copy_within = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_get_mut(&mcall, &let_expr)?);
+    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_let_get_mut(&mcall, &let_expr)?);
 
     us_docs.push_str(&safe_copy_within);
 

@@ -341,7 +341,7 @@ fn convert_to_copy_within(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_ra
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
-pub fn generate_get_mut(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Option<String> {
+pub fn generate_let_get_mut(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Option<String> {
 
     // Obtain the variable Expr that presents the buffer/vector
     let receiver = mcall.receiver()?;
@@ -353,13 +353,32 @@ pub fn generate_get_mut(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Option<St
     let mut buf = String::new();
 
     if let_expr.initializer()?.to_string().contains("mut") {
-        format_to!(buf, "let {} = {}.get_mut({});", pat, receiver, closure_body);
+        format_to!(buf, "let {} = {}.get_mut({}).unwrap();", pat, receiver, closure_body);
     } else {
-        format_to!(buf, "let {} = {}.get({});", pat, receiver, closure_body);
+        format_to!(buf, "let {} = {}.get({}).unwrap();", pat, receiver, closure_body);
     }
 
     return Some(buf);
+}
 
+pub fn generate_get_mut(mcall: &MethodCallExpr, expr: &BinExpr) -> Option<String> {
+
+    // Obtain the variable Expr that presents the buffer/vector
+    let receiver = mcall.receiver()?;
+
+    let closure_body = mcall.arg_list()?.args().exactly_one().ok()?;
+
+    let pat = expr.lhs()?;
+
+    let mut buf = String::new();
+
+    if expr.rhs()?.to_string().contains("mut") {
+        format_to!(buf, "{} = {}.get_mut({}).unwrap();", pat, receiver, closure_body);
+    } else {
+        format_to!(buf, "{} = {}.get({}).unwrap();", pat, receiver, closure_body);
+    }
+
+    return Some(buf);
 }
 
 fn check_single_let_expr(target_expr: &LetStmt) -> bool {
@@ -375,9 +394,24 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
 
     let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
 
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        let mut target_range = target_expr.syntax().parent()?.text_range();
+
+        let buf = generate_get_mut(&mcall, &target_expr)?;
+        
+        if check_single_bin_expr(&target_expr)? == true {
+            target_range = unsafe_range;
+            replace_source_code(acc, target_range, &buf);
+            return None;
+        }
+        return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    }
+
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    let buf = generate_get_mut(&mcall, &let_expr)?;
+    let buf = generate_let_get_mut(&mcall, &let_expr)?;
 
     let mut target_range = let_expr.syntax().text_range();
     if check_single_let_expr(&let_expr) {
@@ -387,7 +421,6 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
     }
 
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
-
 }
 
 struct CpyNonOverlapInfo {
@@ -1084,10 +1117,13 @@ mod tests {
     fn main() {
 
         let mut vec = vec![1,2,3,4,5,6];
+
+        let index;
     
         unsafe$0 {
-            let index = vec.get_unchecked_mut(5);    
+            index = vec.get_unchecked_mut(5);    
         }
+        print!("Index: {:?} \n", index);
     }
     "#,
                 r#"
@@ -1095,7 +1131,10 @@ mod tests {
 
         let mut vec = vec![1,2,3,4,5,6];
 
-        let index = vec.get_mut(5);
+        let index;
+
+        index = vec.get_mut(5).unwrap();
+        print!("Index: {:?} \n", index);
     }
     "#,
             );
