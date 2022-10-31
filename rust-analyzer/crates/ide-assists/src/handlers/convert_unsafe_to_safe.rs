@@ -1141,6 +1141,33 @@ mod tests {
     }
 
     #[test]
+    fn get_uncheckd_3() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+    
+        unsafe$0 {
+            let index = vec.get_unchecked_mut(5);    
+        }
+        print!("Index: {:?} \n", index);
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let mut vec = vec![1,2,3,4,5,6];
+
+        let index = vec.get_mut(5).unwrap();
+        print!("Index: {:?} \n", index);
+    }
+    "#,
+            );
+    }
+
+    #[test]
     fn convert_ptr_copy_1() {
         check_assist(
             convert_unsafe_to_safe,

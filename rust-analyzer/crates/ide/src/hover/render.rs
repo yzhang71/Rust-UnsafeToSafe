@@ -387,7 +387,7 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
         let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
 
-        format_to!(us_docs, "**```---```** **~~```unsafe {{ {}; }}```~~**", target_expr.to_string());
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", target_expr.to_string());
 
         us_docs.push('\n');
         us_docs.push('\n');
@@ -404,7 +404,7 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", let_expr.to_string());
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", let_expr.to_string());
 
     us_docs.push('\n');
     us_docs.push('\n');
@@ -478,7 +478,7 @@ fn format_suggestion_cstring_from_vec_unchecked(mcall: CallExpr) -> Option<Strin
 
         let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
 
-        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", target_expr.to_string());
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", target_expr.to_string());
     
         us_docs.push('\n');
         us_docs.push('\n');
@@ -494,7 +494,7 @@ fn format_suggestion_cstring_from_vec_unchecked(mcall: CallExpr) -> Option<Strin
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", let_expr.to_string());
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", let_expr.to_string());
 
     us_docs.push('\n');
     us_docs.push('\n');
@@ -534,7 +534,7 @@ fn format_suggestion_cstring_bytes_len(mcall: CallExpr) -> Option<String> {
 
         let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
 
-        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", target_expr.to_string());
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", target_expr.to_string());
     
         us_docs.push('\n');
         us_docs.push('\n');
@@ -550,7 +550,7 @@ fn format_suggestion_cstring_bytes_len(mcall: CallExpr) -> Option<String> {
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }}```~~**", let_expr.to_string());
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", let_expr.to_string());
 
     us_docs.push('\n');
     us_docs.push('\n');
