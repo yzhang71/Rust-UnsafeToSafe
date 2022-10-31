@@ -726,7 +726,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::CopyNonOverlap) => return convert_to_copy_from_slice(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CStringFromVec) => return convert_to_cstring_new(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CStringLength) => return convert_to_cstring_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
-            // Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             // Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
