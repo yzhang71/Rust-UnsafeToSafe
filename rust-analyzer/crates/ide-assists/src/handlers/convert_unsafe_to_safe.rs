@@ -760,7 +760,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::CStringFromVec) => return convert_to_cstring_new(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::CStringLength) => return convert_to_cstring_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
-            // Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
         };
@@ -1087,6 +1087,60 @@ mod tests {
             r#"
     fn main() {
 
+        let vec = vec![1,2,3,4,5,6];
+    
+        unsafe$0 {
+            let index = vec.get_unchecked(5);    
+            print!("Index: {:?} \n", index);
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let vec = vec![1,2,3,4,5,6];
+        let index = vec.get(5).unwrap();
+        unsafe$0 {
+
+            print!("Index: {:?} \n", index);
+        }
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn get_uncheckd_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let vec = vec![1,2,3,4,5,6];
+    
+        unsafe$0 {
+            let index = vec.get_unchecked(5);    
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let vec = vec![1,2,3,4,5,6];
+    
+        let index = vec.get(5).unwrap();
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn get_uncheckd_mut_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
         let mut vec = vec![1,2,3,4,5,6];
     
         unsafe$0 {
@@ -1099,7 +1153,7 @@ mod tests {
     fn main() {
 
         let mut vec = vec![1,2,3,4,5,6];
-        let index = vec.get_mut(5);
+        let index = vec.get_mut(5).unwrap();
         unsafe$0 {
 
             print!("Index: {:?} \n", index);
@@ -1110,7 +1164,7 @@ mod tests {
     }
 
     #[test]
-    fn get_uncheckd_2() {
+    fn get_uncheckd_mut_2() {
         check_assist(
             convert_unsafe_to_safe,
             r#"
@@ -1141,7 +1195,7 @@ mod tests {
     }
 
     #[test]
-    fn get_uncheckd_3() {
+    fn get_uncheckd_mut_3() {
         check_assist(
             convert_unsafe_to_safe,
             r#"

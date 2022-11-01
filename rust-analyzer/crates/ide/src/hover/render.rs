@@ -613,7 +613,7 @@ pub(super) fn keyword(
                 Some(UnsafePattern::CStringFromVec) => return display_suggestion_cstring_from_vec_unchecked(&target_expr, &actions),
                 Some(UnsafePattern::CStringLength) => return display_suggestion_cstring_bytes_len(&target_expr, &actions),
                 Some(UnsafePattern::GetUncheckMut) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
-                // Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
+                Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 None => continue,
                 _ => todo!(),
             };
