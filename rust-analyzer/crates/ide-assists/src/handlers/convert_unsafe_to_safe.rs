@@ -74,7 +74,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::CopyNonOverlap => write!(f, "ptr::copy_nonoverlapping"),
             UnsafePattern::CStringFromVec => write!(f, "CString::from_vec_unchecked"),
             UnsafePattern::CStringLength => write!(f, "libc::strlen"),
-            UnsafePattern::BytesToUTFString => write!(f, "from_utf8_unchecked"),
+            UnsafePattern::BytesToUTFString => write!(f, "str::from_utf8_unchecked"),
         }
     }
 }
@@ -425,6 +425,57 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
+pub fn generate_from_utf8(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
+
+    // Obtain the variable Expr that presents the buffer/vector
+    let receiver = mcall.arg_list()?.args().nth(0)?;
+
+    let pat = expr.lhs()?;
+
+    let mut buf = String::new();
+
+    format_to!(buf, "{} = str::from_utf8({}).unwrap();", pat, receiver);
+
+    return Some(buf);
+}
+
+fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    println!("mcall : {:?}", mcall.to_string());
+
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        let mut target_range = target_expr.syntax().parent()?.text_range();
+
+        let buf = generate_from_utf8(&mcall, &target_expr)?;
+        
+        if check_single_bin_expr(&target_expr)? == true {
+            target_range = unsafe_range;
+            replace_source_code(acc, target_range, &buf);
+            return None;
+        }
+        return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    }
+
+    return None;
+
+    // let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    // let buf = generate_let_get_mut(&mcall, &let_expr)?;
+
+    // let mut target_range = let_expr.syntax().text_range();
+    // if check_single_let_expr(&let_expr) {
+    //     target_range = unsafe_range;
+    //     replace_source_code(acc, target_range, &buf);
+    //     return None;
+    // }
+
+    // return reindent_expr(unsafe_expr, acc, target_range, &buf);
+}
+
 struct CpyNonOverlapInfo {
     src_expr: IndexExpr,
     dst_expr: IndexExpr,
@@ -768,7 +819,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::CStringLength) => return convert_to_cstring_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
-            Some(UnsafePattern::from_utf8_unchecked) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::BytesToUTFString) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
         };
@@ -797,7 +848,7 @@ mod tests {
         let string;
 
         unsafe$0 {
-            string = str::from_utf8_unchecked(invalid)
+            string = str::from_utf8_unchecked(&sparkle_heart)
         }
         println!("sparkle_heart: {:?}", string);
     }
@@ -809,8 +860,7 @@ mod tests {
 
         let string;
 
-        string = str::from_utf8(&invalid).unwrap();
-
+        string = str::from_utf8(&sparkle_heart).unwrap();
         println!("sparkle_heart: {:?}", string);
     }
     "#,
@@ -827,7 +877,7 @@ mod tests {
         let sparkle_heart : &[u8] = &[240, 159, 146, 150];
 
         unsafe$0 {
-            let string = str::from_utf8_unchecked(invalid);
+            let string = str::from_utf8_unchecked(&sparkle_heart);
         }
         println!("sparkle_heart: {:?}", string);
     }
@@ -837,7 +887,7 @@ mod tests {
 
         let sparkle_heart : &[u8] = &[240, 159, 146, 150];
 
-        let string = str::from_utf8(&invalid).unwrap();
+        let string = str::from_utf8(&sparkle_heart).unwrap();
 
         println!("sparkle_heart: {:?}", string);
     }
