@@ -761,6 +761,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::CStringLength) => return convert_to_cstring_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::from_utf8_unchecked) => return convert_to_from_utf8_unchecked(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
         };
