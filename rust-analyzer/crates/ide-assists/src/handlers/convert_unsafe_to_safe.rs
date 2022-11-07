@@ -427,7 +427,7 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
 
 pub fn generate_from_utf8(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
 
-    // Obtain the variable Expr that presents the buffer/vector
+    // Obtain the variable Expr that presents the string
     let receiver = mcall.arg_list()?.args().nth(0)?;
 
     let pat = expr.lhs()?;
@@ -439,11 +439,23 @@ pub fn generate_from_utf8(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
     return Some(buf);
 }
 
+pub fn generate_let_from_utf8(mcall: &CallExpr, let_expr: &LetStmt) -> Option<String> {
+
+    // Obtain the variable Expr that presents the string
+    let receiver = mcall.arg_list()?.args().nth(0)?;
+
+    let pat = let_expr.pat()?;
+
+    let mut buf = String::new();
+
+    format_to!(buf, "let {} = str::from_utf8({}).unwrap();", pat, receiver);
+
+    return Some(buf);
+}
+
 fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
-
-    println!("mcall : {:?}", mcall.to_string());
 
     if mcall.syntax().parent()?.kind() == BIN_EXPR {
         let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
@@ -460,20 +472,18 @@ fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
         return reindent_expr(unsafe_expr, acc, target_range, &buf);
     }
 
-    return None;
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    // let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+    let buf = generate_let_from_utf8(&mcall, &let_expr)?;
 
-    // let buf = generate_let_get_mut(&mcall, &let_expr)?;
+    let mut target_range = let_expr.syntax().text_range();
+    if check_single_let_expr(&let_expr) {
+        target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
 
-    // let mut target_range = let_expr.syntax().text_range();
-    // if check_single_let_expr(&let_expr) {
-    //     target_range = unsafe_range;
-    //     replace_source_code(acc, target_range, &buf);
-    //     return None;
-    // }
-
-    // return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
 struct CpyNonOverlapInfo {
@@ -888,7 +898,6 @@ mod tests {
         let sparkle_heart : &[u8] = &[240, 159, 146, 150];
 
         let string = str::from_utf8(&sparkle_heart).unwrap();
-
         println!("sparkle_heart: {:?}", string);
     }
     "#,
