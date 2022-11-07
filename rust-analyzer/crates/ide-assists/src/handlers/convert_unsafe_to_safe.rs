@@ -58,6 +58,7 @@ pub enum UnsafePattern {
     CopyNonOverlap,
     CStringFromVec,
     CStringLength,
+    BytesToUTFString,
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -73,6 +74,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::CopyNonOverlap => write!(f, "ptr::copy_nonoverlapping"),
             UnsafePattern::CStringFromVec => write!(f, "CString::from_vec_unchecked"),
             UnsafePattern::CStringLength => write!(f, "libc::strlen"),
+            UnsafePattern::BytesToUTFString => write!(f, "from_utf8_unchecked"),
         }
     }
 }
@@ -717,6 +719,11 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
     if target_expr.to_string() == UnsafePattern::CStringLength.to_string() {
         return Some(UnsafePattern::CStringLength);
     }
+
+    if target_expr.to_string() == UnsafePattern::BytesToUTFString.to_string() {
+        return Some(UnsafePattern::BytesToUTFString);
+    }
+
     return None;
 
 }
@@ -761,7 +768,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::CStringLength) => return convert_to_cstring_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
-            Some(UnsafePattern::from_utf8_unchecked) => return convert_to_from_utf8_unchecked(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::from_utf8_unchecked) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
         };
@@ -777,6 +784,66 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn byte_utf_string_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let sparkle_heart : &[u8] = &[240, 159, 146, 150];
+
+        let string;
+
+        unsafe$0 {
+            string = str::from_utf8_unchecked(invalid)
+        }
+        println!("sparkle_heart: {:?}", string);
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let sparkle_heart : &[u8] = &[240, 159, 146, 150];
+
+        let string;
+
+        string = str::from_utf8(&invalid).unwrap();
+
+        println!("sparkle_heart: {:?}", string);
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn byte_utf_string_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let sparkle_heart : &[u8] = &[240, 159, 146, 150];
+
+        unsafe$0 {
+            let string = str::from_utf8_unchecked(invalid);
+        }
+        println!("sparkle_heart: {:?}", string);
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let sparkle_heart : &[u8] = &[240, 159, 146, 150];
+
+        let string = str::from_utf8(&invalid).unwrap();
+
+        println!("sparkle_heart: {:?}", string);
+    }
+    "#,
+            );
+    }
 
     #[test]
     fn from_vec_unchecked_1() {
