@@ -15,7 +15,7 @@ use ide_db::{
 use ide_assists::{
     handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, 
         generate_copywithin_format, generate_let_get_mut, generate_get_mut, generate_copy_from_slice_format, check_convert_type, 
-        generate_cstring_new_format, generate_bytes_len_format}
+        generate_cstring_new_format, generate_bytes_len_format, generate_from_utf8, generate_let_from_utf8}
 };
 
 use itertools::Itertools;
@@ -581,6 +581,61 @@ fn display_suggestion_cstring_bytes_len(target_expr: &SyntaxNode, actions: &Vec<
 
 }
 
+fn format_suggestion_from_utf8_unchecked(mcall: CallExpr) -> Option<String> {
+
+    let mut us_docs = String::new();
+
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", target_expr.to_string());
+    
+        us_docs.push('\n');
+        us_docs.push('\n');
+    
+        let mut safe_cstring_new = String::new();
+    
+        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_utf8(&mcall, &target_expr)?);
+        
+        us_docs.push_str(&safe_cstring_new);
+    
+        return Some(us_docs.to_string());
+    }
+
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", let_expr.to_string());
+
+    us_docs.push('\n');
+    us_docs.push('\n');
+
+    let mut safe_cstring_new = String::new();
+
+    format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_let_from_utf8(&mcall, &let_expr)?);
+
+    us_docs.push_str(&safe_cstring_new);
+
+    return Some(us_docs.to_string());
+
+}
+
+fn display_suggestion_from_utf8_unchecked(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    let us_description = generate_description();
+
+    let us_docs = format_suggestion_from_utf8_unchecked(mcall)?;
+
+    let markup = process_unsafe_display_text(
+        &markup(Some(us_docs), us_description, None)?,
+    );
+
+    return Some(HoverResult { markup, actions: actions.to_vec() });
+
+}
+
 
 
 pub(super) fn keyword(
@@ -614,6 +669,7 @@ pub(super) fn keyword(
                 Some(UnsafePattern::CStringLength) => return display_suggestion_cstring_bytes_len(&target_expr, &actions),
                 Some(UnsafePattern::GetUncheckMut) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
+                Some(UnsafePattern::BytesToUTFString) => return display_suggestion_from_utf8_unchecked(&target_expr, &actions),
                 None => continue,
                 _ => todo!(),
             };
