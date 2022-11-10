@@ -90,6 +90,8 @@ pub fn generate_safevec_format(mcall: &MethodCallExpr) -> Option<String> {
 
     format_to!(buf, "let mut {} = vec![0; {}];", receiver, closure_body);
 
+    buf.push('\n');
+
     return Some(buf);
 
 }
@@ -104,6 +106,8 @@ pub fn generate_resizevec_format(mcall: &MethodCallExpr) -> Option<String> {
     let mut buf = String::new();
 
     format_to!(buf, "{}.resize({}, 0);", receiver, closure_body);
+
+    buf.push('\n');
 
     return Some(buf);
 
@@ -360,6 +364,8 @@ pub fn generate_let_get_mut(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Optio
         format_to!(buf, "let {} = {}.get({}).unwrap();", pat, receiver, closure_body);
     }
 
+    buf.push('\n');
+
     return Some(buf);
 }
 
@@ -379,6 +385,8 @@ pub fn generate_get_mut(mcall: &MethodCallExpr, expr: &BinExpr) -> Option<String
     } else {
         format_to!(buf, "{} = {}.get({}).unwrap();", pat, receiver, closure_body);
     }
+
+    buf.push('\n');
 
     return Some(buf);
 }
@@ -436,6 +444,8 @@ pub fn generate_from_utf8(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
 
     format_to!(buf, "{} = str::from_utf8({}).unwrap();", pat, receiver);
 
+    buf.push('\n');
+
     return Some(buf);
 }
 
@@ -449,6 +459,8 @@ pub fn generate_let_from_utf8(mcall: &CallExpr, let_expr: &LetStmt) -> Option<St
     let mut buf = String::new();
 
     format_to!(buf, "let {} = str::from_utf8({}).unwrap();", pat, receiver);
+
+    buf.push('\n');
 
     return Some(buf);
 }
@@ -553,6 +565,8 @@ fn format_index_expr(expr_index: &IndexExpr, count: &String) -> Option<String> {
     } else {
         format_to!(buf, "{}[{}..{} + {}]", expr_index.base()?, lhs.to_string(), lhs.to_string(), count);
     }
+
+    buf.push('\n');
 
     return Some(buf);
 
