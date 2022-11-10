@@ -322,6 +322,8 @@ fn reindent_expr(unsafe_expr: &BlockExpr, acc: &mut Assists, target_range: TextR
 
     format_to!(new_buf, "{}{}", indent_level, buf);
 
+    new_buf.push('\n');
+
     delet_insert_source_code(acc, target_range, position, &new_buf);
 
     return None;
