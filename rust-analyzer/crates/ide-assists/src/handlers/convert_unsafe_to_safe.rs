@@ -59,6 +59,7 @@ pub enum UnsafePattern {
     CStringFromVec,
     CStringLength,
     BytesToUTFString,
+    TransmuteTo,
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -75,6 +76,19 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::CStringFromVec => write!(f, "CString::from_vec_unchecked"),
             UnsafePattern::CStringLength => write!(f, "libc::strlen"),
             UnsafePattern::BytesToUTFString => write!(f, "str::from_utf8_unchecked"),
+            UnsafePattern::TransmuteTo => write!(f, "mem::transmute"),
+        }
+    }
+}
+
+enum TargetTypes {
+    String,
+}
+
+impl std::fmt::Display for TargetTypes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TargetTypes::String => write!(f, "&str"),
         }
     }
 }
@@ -500,6 +514,58 @@ fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
+pub fn generate_let_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<String> {
+
+    // Obtain the variable Expr that presents the string
+    let receiver = mcall.arg_list()?.args().nth(0)?;
+
+    let pat = let_expr.pat()?;
+
+    let mut buf = String::new();
+
+    if let_expr.to_string().contains(&TargetTypes::String.to_string()) {
+        format_to!(buf, "let {} = str::from_utf8({}).unwrap();", pat, receiver);
+    }
+
+    buf.push('\n');
+
+    return Some(buf);
+}
+
+fn transmute_convertion(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    // if mcall.syntax().parent()?.kind() == BIN_EXPR {
+    //     let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+    //     let mut target_range = target_expr.syntax().parent()?.text_range();
+
+    //     let buf = generate_from_utf8(&mcall, &target_expr)?;
+        
+    //     if check_single_bin_expr(&target_expr)? == true {
+    //         target_range = unsafe_range;
+    //         replace_source_code(acc, target_range, &buf);
+    //         return None;
+    //     }
+    //     return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    // }
+
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    let buf = generate_let_from_transmute(&mcall, &let_expr)?;
+
+    let mut target_range = let_expr.syntax().text_range();
+    if check_single_let_expr(&let_expr) {
+        target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
+
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    // return None;
+}
+
 struct CpyNonOverlapInfo {
     src_expr: IndexExpr,
     dst_expr: IndexExpr,
@@ -801,6 +867,10 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
         return Some(UnsafePattern::BytesToUTFString);
     }
 
+    if target_expr.to_string() == UnsafePattern::TransmuteTo.to_string() {
+        return Some(UnsafePattern::TransmuteTo);
+    }
+
     return None;
 
 }
@@ -846,6 +916,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::BytesToUTFString) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::TransmuteTo) => return transmute_convertion(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
         };
@@ -861,6 +932,37 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn transmute_byte_to_str_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let bytes: &[u8] = &[b'r', b'u', b's', b't'];
+    
+        unsafe$0 {
+            let string: &str = mem::transmute(bytes);
+            println!("convert string: {:?}", string);
+        }
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let bytes: &[u8] = &[b'r', b'u', b's', b't'];
+        let string = str::from_utf8(bytes).unwrap();
+
+
+        unsafe$0 {
+            
+            println!("convert string: {:?}", string);
+        }
+    }
+    "#,
+            );
+    }
 
     #[test]
     fn byte_utf_string_1() {
