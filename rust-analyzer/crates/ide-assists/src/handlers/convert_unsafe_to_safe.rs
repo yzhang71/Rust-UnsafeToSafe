@@ -83,12 +83,14 @@ impl std::fmt::Display for UnsafePattern {
 
 enum TargetTypes {
     String,
+    Bytes,
 }
 
 impl std::fmt::Display for TargetTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TargetTypes::String => write!(f, "&str"),
+            TargetTypes::Bytes => write!(f, "&[u8]"),
         }
     }
 }
@@ -525,6 +527,10 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<S
 
     if let_expr.to_string().contains(&TargetTypes::String.to_string()) {
         format_to!(buf, "let {} = str::from_utf8({}).unwrap();", pat, receiver);
+    }
+
+    if let_expr.to_string().contains(&TargetTypes::Bytes.to_string()) {
+        format_to!(buf, "let {} = {}.as_bytes();", pat, receiver);
     }
 
     buf.push('\n');
