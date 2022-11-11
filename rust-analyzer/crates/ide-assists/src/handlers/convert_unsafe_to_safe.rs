@@ -514,7 +514,7 @@ fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
-pub fn generate_let_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<String> {
+pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<String> {
 
     // Obtain the variable Expr that presents the string
     let receiver = mcall.arg_list()?.args().nth(0)?;
@@ -536,24 +536,9 @@ fn transmute_convertion(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
-    // if mcall.syntax().parent()?.kind() == BIN_EXPR {
-    //     let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
-
-    //     let mut target_range = target_expr.syntax().parent()?.text_range();
-
-    //     let buf = generate_from_utf8(&mcall, &target_expr)?;
-        
-    //     if check_single_bin_expr(&target_expr)? == true {
-    //         target_range = unsafe_range;
-    //         replace_source_code(acc, target_range, &buf);
-    //         return None;
-    //     }
-    //     return reindent_expr(unsafe_expr, acc, target_range, &buf);
-    // }
-
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    let buf = generate_let_from_transmute(&mcall, &let_expr)?;
+    let buf = generate_from_transmute(&mcall, &let_expr)?;
 
     let mut target_range = let_expr.syntax().text_range();
     if check_single_let_expr(&let_expr) {
@@ -563,7 +548,6 @@ fn transmute_convertion(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     }
 
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
-    // return None;
 }
 
 struct CpyNonOverlapInfo {
