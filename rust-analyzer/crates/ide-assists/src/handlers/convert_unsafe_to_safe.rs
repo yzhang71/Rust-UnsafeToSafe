@@ -84,6 +84,10 @@ impl std::fmt::Display for UnsafePattern {
 enum TargetTypes {
     String,
     Bytes,
+    U32,
+    U64,
+    F32,
+    F64,
 }
 
 impl std::fmt::Display for TargetTypes {
@@ -91,6 +95,10 @@ impl std::fmt::Display for TargetTypes {
         match self {
             TargetTypes::String => write!(f, "&str"),
             TargetTypes::Bytes => write!(f, "&[u8]"),
+            TargetTypes::U32 => write!(f, "u32"),
+            TargetTypes::U64 => write!(f, "u64"),
+            TargetTypes::F32 => write!(f, "f32"),
+            TargetTypes::F64 => write!(f, "f64"),
         }
     }
 }
@@ -531,6 +539,19 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<S
 
     if let_expr.to_string().contains(&TargetTypes::Bytes.to_string()) {
         format_to!(buf, "let {} = {}.as_bytes();", pat, receiver);
+    }
+
+    if let_expr.to_string().contains(&TargetTypes::U32.to_string()) ||
+        let_expr.to_string().contains(&TargetTypes::U64.to_string()) {
+        format_to!(buf, "let {} = {}.to_bits();", pat, receiver);
+    }
+
+    if let_expr.to_string().contains(&TargetTypes::F32.to_string()) {
+        format_to!(buf, "let {} = f32::from_bits({});", pat, receiver);
+    }
+
+    if let_expr.to_string().contains(&TargetTypes::F64.to_string()) {
+        format_to!(buf, "let {} = f64::from_bits({});", pat, receiver);
     }
 
     buf.push('\n');
