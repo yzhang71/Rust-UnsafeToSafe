@@ -533,6 +533,8 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<S
 
     let mut buf = String::new();
 
+    println!("String: {:?}", let_expr.to_string());
+
     if let_expr.to_string().contains(&TargetTypes::String.to_string()) {
         format_to!(buf, "let {} = str::from_utf8({}).unwrap();", pat, receiver);
     }
@@ -943,6 +945,37 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn transmute_float_to_int_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let int: u64 = 666;
+
+        unsafe$0 {
+            let float: f64 = mem::transmute(int);
+            println!("convert float: {:?}", float);
+        } 
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let int: u64 = 666;
+        let float = f64::from_bits(int);
+
+
+        unsafe$0 {
+            
+            println!("convert float: {:?}", float);
+        }
+    }
+    "#,
+            );
+    }
 
     #[test]
     fn transmute_byte_to_str_1() {
