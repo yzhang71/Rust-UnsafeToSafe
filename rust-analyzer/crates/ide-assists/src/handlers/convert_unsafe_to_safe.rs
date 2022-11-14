@@ -533,8 +533,6 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<S
 
     let mut buf = String::new();
 
-    println!("String: {:?}", let_expr.to_string());
-
     if let_expr.to_string().contains(&TargetTypes::String.to_string()) {
         format_to!(buf, "let {} = str::from_utf8({}).unwrap();", pat, receiver);
     }
@@ -958,7 +956,7 @@ mod tests {
         unsafe$0 {
             let float: f64 = mem::transmute(int);
             println!("convert float: {:?}", float);
-        } 
+        }
     }
     "#,
                 r#"
