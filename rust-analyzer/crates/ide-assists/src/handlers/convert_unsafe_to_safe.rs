@@ -88,6 +88,7 @@ enum TargetTypes {
     U64,
     F32,
     F64,
+    Char,
 }
 
 impl std::fmt::Display for TargetTypes {
@@ -99,6 +100,7 @@ impl std::fmt::Display for TargetTypes {
             TargetTypes::U64 => write!(f, "u64"),
             TargetTypes::F32 => write!(f, "f32"),
             TargetTypes::F64 => write!(f, "f64"),
+            TargetTypes::Char => write!(f, "char"),
         }
     }
 }
@@ -552,6 +554,10 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<S
 
     if let_expr.to_string().contains(&TargetTypes::F64.to_string()) {
         format_to!(buf, "let {} = f64::from_bits({});", pat, receiver);
+    }
+
+    if let_expr.to_string().contains(&TargetTypes::Char.to_string()) {
+        format_to!(buf, "let {} = char::from_u32({}).unwrap();", pat, receiver);
     }
 
     buf.push('\n');
