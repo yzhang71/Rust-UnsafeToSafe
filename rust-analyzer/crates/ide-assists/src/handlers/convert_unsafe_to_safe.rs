@@ -526,7 +526,7 @@ fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
-pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<String> {
+pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt, unsafe_expr: &BlockExpr) -> Option<String> {
 
     // Obtain the variable Expr that presents the string
     let receiver = mcall.arg_list()?.args().nth(0)?;
@@ -543,8 +543,7 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<S
         format_to!(buf, "let {} = {}.as_bytes();", pat, receiver);
     }
 
-    if let_expr.to_string().contains(&TargetTypes::U32.to_string()) ||
-        let_expr.to_string().contains(&TargetTypes::U64.to_string()) {
+    if let_expr.to_string().contains(&TargetTypes::U64.to_string()) {
         format_to!(buf, "let {} = {}.to_bits();", pat, receiver);
     }
 
@@ -560,6 +559,24 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt) -> Option<S
         format_to!(buf, "let {} = char::from_u32({}).unwrap();", pat, receiver);
     }
 
+    if let_expr.to_string().contains(&TargetTypes::U32.to_string()) {
+        let mut backward_list = unsafe_expr.syntax().siblings(Direction::Prev);
+
+        if unsafe_expr.syntax().parent()?.kind() != STMT_LIST {
+            backward_list = unsafe_expr.syntax().parent()?.siblings(Direction::Prev);
+        }
+    
+        for backward_slice in backward_list {
+            let statement = backward_slice.to_string();
+            if statement.contains(&receiver.to_string()) && backward_slice.kind() == LET_STMT {
+                if statement.contains(&TargetTypes::Char.to_string()) {
+                    format_to!(buf, "let {} = {} as u32;", pat, receiver);
+                }
+                
+            }
+        }
+    }
+
     buf.push('\n');
 
     return Some(buf);
@@ -571,7 +588,7 @@ fn transmute_convertion(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    let buf = generate_from_transmute(&mcall, &let_expr)?;
+    let buf = generate_from_transmute(&mcall, &let_expr, &unsafe_expr)?;
 
     let mut target_range = let_expr.syntax().text_range();
     if check_single_let_expr(&let_expr) {
