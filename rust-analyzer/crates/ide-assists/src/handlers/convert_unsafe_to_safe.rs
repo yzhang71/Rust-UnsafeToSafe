@@ -537,26 +537,38 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt, unsafe_expr
 
     if let_expr.to_string().contains(&TargetTypes::String.to_string()) {
         format_to!(buf, "let {} = str::from_utf8({}).unwrap();", pat, receiver);
+        buf.push('\n');
+        return Some(buf);
     }
 
     if let_expr.to_string().contains(&TargetTypes::Bytes.to_string()) {
         format_to!(buf, "let {} = {}.as_bytes();", pat, receiver);
+        buf.push('\n');
+        return Some(buf);
     }
 
     if let_expr.to_string().contains(&TargetTypes::U64.to_string()) {
         format_to!(buf, "let {} = {}.to_bits();", pat, receiver);
+        buf.push('\n');
+        return Some(buf);
     }
 
     if let_expr.to_string().contains(&TargetTypes::F32.to_string()) {
         format_to!(buf, "let {} = f32::from_bits({});", pat, receiver);
+        buf.push('\n');
+        return Some(buf);
     }
 
     if let_expr.to_string().contains(&TargetTypes::F64.to_string()) {
         format_to!(buf, "let {} = f64::from_bits({});", pat, receiver);
+        buf.push('\n');
+        return Some(buf);
     }
 
     if let_expr.to_string().contains(&TargetTypes::Char.to_string()) {
         format_to!(buf, "let {} = char::from_u32({}).unwrap();", pat, receiver);
+        buf.push('\n');
+        return Some(buf);
     }
 
     if let_expr.to_string().contains(&TargetTypes::U32.to_string()) {
@@ -571,17 +583,18 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt, unsafe_expr
             if statement.contains(&receiver.to_string()) && backward_slice.kind() == LET_STMT {
                 if statement.contains(&TargetTypes::Char.to_string()) {
                     format_to!(buf, "let {} = {} as u32;", pat, receiver);
+                    buf.push('\n');
+                    return Some(buf);
                 }
                 if statement.contains(&TargetTypes::F32.to_string()) {
                     format_to!(buf, "let {} = {}.to_bits();", pat, receiver);
+                    buf.push('\n');
+                    return Some(buf);
                 }
             }
         }
     }
-
-    buf.push('\n');
-
-    return Some(buf);
+    return None;
 }
 
 fn transmute_convertion(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
