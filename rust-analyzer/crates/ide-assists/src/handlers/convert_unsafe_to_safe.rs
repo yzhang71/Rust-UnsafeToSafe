@@ -572,7 +572,9 @@ pub fn generate_from_transmute(mcall: &CallExpr, let_expr: &LetStmt, unsafe_expr
                 if statement.contains(&TargetTypes::Char.to_string()) {
                     format_to!(buf, "let {} = {} as u32;", pat, receiver);
                 }
-                
+                if statement.contains(&TargetTypes::F32.to_string()) {
+                    format_to!(buf, "let {} = {}.to_bits();", pat, receiver);
+                }
             }
         }
     }
