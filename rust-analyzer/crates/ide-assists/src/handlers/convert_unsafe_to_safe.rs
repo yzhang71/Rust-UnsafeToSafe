@@ -617,6 +617,26 @@ fn transmute_convertion(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
+fn convert_to_from_ne_bytes(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+    
+    println!("mcall: {:?}", mcall.to_string());
+
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    let buf = generate_from_transmute(&mcall, &let_expr, &unsafe_expr)?;
+
+    let mut target_range = let_expr.syntax().text_range();
+    if check_single_let_expr(&let_expr) {
+        target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
+
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
+}
+
 struct CpyNonOverlapInfo {
     src_expr: IndexExpr,
     dst_expr: IndexExpr,
@@ -922,6 +942,10 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
         return Some(UnsafePattern::TransmuteTo);
     }
 
+    if target_expr.to_string() == UnsafePattern::ReadUnaligned.to_string() {
+        return Some(UnsafePattern::ReadUnaligned);
+    }
+
     return None;
 
 }
@@ -968,6 +992,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::BytesToUTFString) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::TransmuteTo) => return transmute_convertion(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::ReadUnaligned) => return convert_to_from_ne_bytes(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
         };
@@ -994,7 +1019,7 @@ mod tests {
         let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
     
         unsafe$0 { 
-            let int: u16 = ptr::read_unaligned(bytes.as_ptr() as *const u16);
+            let int = ptr::read_unaligned(bytes.as_ptr() as *const u16);
         }
         println!("The convert int: {:?}", int);
         
@@ -1006,7 +1031,7 @@ mod tests {
         let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
         
         let bytes_to_convert = bytes[..2].try_into().unwrap();
-        let int: u16 = u16::from_ne_bytes(bytes_to_convert);
+        let int = u16::from_ne_bytes(bytes_to_convert);
         println!("The convert int: {:?}", int);
         
     }
