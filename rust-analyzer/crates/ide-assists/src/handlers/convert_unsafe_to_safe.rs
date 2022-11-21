@@ -60,7 +60,8 @@ pub enum UnsafePattern {
     CStringLength,
     BytesToUTFString,
     TransmuteTo,
-    ReadUnaligned
+    ReadUnaligned,
+    AsPtr
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -79,6 +80,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::BytesToUTFString => write!(f, "str::from_utf8_unchecked"),
             UnsafePattern::TransmuteTo => write!(f, "mem::transmute"),
             UnsafePattern::ReadUnaligned => write!(f, "ptr::read_unaligned"),
+            UnsafePattern::AsPtr => write!(f, "as_ptr"),
         }
     }
 }
@@ -86,6 +88,8 @@ impl std::fmt::Display for UnsafePattern {
 enum TargetTypes {
     String,
     Bytes,
+    U8,
+    U16,
     U32,
     U64,
     F32,
@@ -98,6 +102,8 @@ impl std::fmt::Display for TargetTypes {
         match self {
             TargetTypes::String => write!(f, "&str"),
             TargetTypes::Bytes => write!(f, "&[u8]"),
+            TargetTypes::U8 => write!(f, "u8"),
+            TargetTypes::U16 => write!(f, "u16"),
             TargetTypes::U32 => write!(f, "u32"),
             TargetTypes::U64 => write!(f, "u64"),
             TargetTypes::F32 => write!(f, "f32"),
@@ -617,15 +623,105 @@ fn transmute_convertion(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
+pub fn generate_bytes_to_convert(mcall: &CallExpr, let_sign: bool) -> Option<String> {
+
+    let mut buf = String::new();
+
+    let lhs_expr;
+
+    if !let_sign {
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+        lhs_expr = target_expr.lhs()?.to_string();   
+    } else {
+        let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+        lhs_expr = let_expr.pat()?.to_string();
+    }
+
+    let arg = mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?.to_string();
+    let receiver;
+
+    if arg.contains(&UnsafePattern::AsPtr.to_string()) {
+        receiver = arg.split(".").nth(0)?;
+    } else {
+        receiver = &arg;
+    }
+
+    let target_type = mcall.arg_list()?.args().nth(0)?.syntax().children().nth(1)?.to_string();
+
+    if target_type.contains(&TargetTypes::U8.to_string()) {
+        if !let_sign {
+            format_to!(buf, "{} = u8::from_ne_bytes({}[..1].try_into().unwrap());", lhs_expr, receiver);
+            buf.push('\n');
+            return Some(buf);
+        } else {
+            format_to!(buf, "let {} = u8::from_ne_bytes({}[..1].try_into().unwrap());", lhs_expr, receiver);
+            buf.push('\n');
+            return Some(buf);
+        }
+    } 
+
+    if target_type.contains(&TargetTypes::U16.to_string()) {
+        if !let_sign {
+            format_to!(buf, "{} = u16::from_ne_bytes({}[..2].try_into().unwrap());", lhs_expr, receiver);
+            buf.push('\n');
+            return Some(buf);
+        } else {
+            format_to!(buf, "let {} = u16::from_ne_bytes({}[..2].try_into().unwrap());", lhs_expr, receiver);
+            buf.push('\n');
+            return Some(buf);
+        }
+    }
+    
+    if target_type.contains(&TargetTypes::U32.to_string()) {
+        if !let_sign {
+            format_to!(buf, "{} = u32::from_ne_bytes({}[..4].try_into().unwrap());", lhs_expr, receiver);
+            buf.push('\n');
+            return Some(buf);
+        } else {
+            format_to!(buf, "let {} = u32::from_ne_bytes({}[..4].try_into().unwrap());", lhs_expr, receiver);
+            buf.push('\n');
+            return Some(buf);
+        }
+    } 
+
+    if target_type.contains(&TargetTypes::U64.to_string()) {
+        if !let_sign {
+            format_to!(buf, "{} = u64::from_ne_bytes({}[..8].try_into().unwrap());", lhs_expr, receiver);
+            buf.push('\n');
+            return Some(buf);
+        } else {
+            format_to!(buf, "let {} = u64::from_ne_bytes({}[..8].try_into().unwrap());", lhs_expr, receiver);
+            buf.push('\n');
+            return Some(buf);
+        }
+    } 
+
+    return None;
+}
+
 fn convert_to_from_ne_bytes(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
     
-    println!("mcall: {:?}", mcall.to_string());
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        let mut target_range = target_expr.syntax().parent()?.text_range();
+
+        let buf = generate_bytes_to_convert(&mcall, false)?;
+        
+        if check_single_bin_expr(&target_expr)? == true {
+            target_range = unsafe_range;
+            replace_source_code(acc, target_range, &buf);
+            return None;
+        }
+        return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    }
+
+    let buf = generate_bytes_to_convert(&mcall, true)?;
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
-
-    let buf = generate_from_transmute(&mcall, &let_expr, &unsafe_expr)?;
 
     let mut target_range = let_expr.syntax().text_range();
     if check_single_let_expr(&let_expr) {
@@ -1029,9 +1125,39 @@ mod tests {
     fn main() {
 
         let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+    
+        let int = u16::from_ne_bytes(bytes[..2].try_into().unwrap());
+    
+        println!("The convert int: {:?}", int);
         
-        let bytes_to_convert = bytes[..2].try_into().unwrap();
-        let int = u16::from_ne_bytes(bytes_to_convert);
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn read_unaligned_2() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+        let int;
+        unsafe$0 { 
+            int = ptr::read_unaligned(bytes.as_ptr() as *const u16);
+        }
+        println!("The convert int: {:?}", int);
+        
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+        let int;
+        int = u16::from_ne_bytes(bytes[..2].try_into().unwrap());
+    
         println!("The convert int: {:?}", int);
         
     }
