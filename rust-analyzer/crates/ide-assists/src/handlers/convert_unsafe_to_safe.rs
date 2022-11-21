@@ -60,6 +60,7 @@ pub enum UnsafePattern {
     CStringLength,
     BytesToUTFString,
     TransmuteTo,
+    ReadUnaligned
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -77,6 +78,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::CStringLength => write!(f, "libc::strlen"),
             UnsafePattern::BytesToUTFString => write!(f, "str::from_utf8_unchecked"),
             UnsafePattern::TransmuteTo => write!(f, "mem::transmute"),
+            UnsafePattern::ReadUnaligned => write!(f, "ptr::read_unaligned"),
         }
     }
 }
@@ -981,6 +983,36 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn read_unaligned_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+    
+        unsafe$0 { 
+            let int: u16 = ptr::read_unaligned(bytes.as_ptr() as *const u16);
+        }
+        println!("The convert int: {:?}", int);
+        
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+        
+        let bytes_to_convert = bytes[..2].try_into().unwrap();
+        let int: u16 = u16::from_ne_bytes(bytes_to_convert);
+        println!("The convert int: {:?}", int);
+        
+    }
+    "#,
+            );
+    }
 
     #[test]
     fn transmute_float_to_int_1() {
