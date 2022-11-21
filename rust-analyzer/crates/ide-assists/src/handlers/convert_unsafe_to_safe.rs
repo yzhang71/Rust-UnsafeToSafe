@@ -623,7 +623,7 @@ fn transmute_convertion(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
-pub fn generate_bytes_to_convert(mcall: &CallExpr, let_sign: bool) -> Option<String> {
+pub fn generate_bytes_to_convert(mcall: &CallExpr, unsafe_expr: &BlockExpr, let_sign: bool) -> Option<String> {
 
     let mut buf = String::new();
 
@@ -638,12 +638,26 @@ pub fn generate_bytes_to_convert(mcall: &CallExpr, let_sign: bool) -> Option<Str
     }
 
     let arg = mcall.arg_list()?.args().nth(0)?.syntax().children().nth(0)?.to_string();
-    let receiver;
+    let mut receiver;
 
     if arg.contains(&UnsafePattern::AsPtr.to_string()) {
-        receiver = arg.split(".").nth(0)?;
+        receiver = arg.split(".").nth(0)?.to_string();
     } else {
-        receiver = &arg;
+        receiver = arg.to_string();
+        let mut backward_list = unsafe_expr.syntax().siblings(Direction::Prev);
+
+        if unsafe_expr.syntax().parent()?.kind() != STMT_LIST {
+            backward_list = unsafe_expr.syntax().parent()?.siblings(Direction::Prev);
+        }
+    
+        for backward_slice in backward_list {
+            if backward_slice.to_string().contains(&arg) && backward_slice.kind() == LET_STMT {
+                let src_def = ast::LetStmt::cast(backward_slice)?;
+                let rhs_expr = src_def.initializer()?.to_string();
+                receiver = rhs_expr.split(".").nth(0)?.to_string();
+                break;
+            }
+        }
     }
 
     let target_type = mcall.arg_list()?.args().nth(0)?.syntax().children().nth(1)?.to_string();
@@ -709,7 +723,7 @@ fn convert_to_from_ne_bytes(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_
 
         let mut target_range = target_expr.syntax().parent()?.text_range();
 
-        let buf = generate_bytes_to_convert(&mcall, false)?;
+        let buf = generate_bytes_to_convert(&mcall, unsafe_expr, false)?;
         
         if check_single_bin_expr(&target_expr)? == true {
             target_range = unsafe_range;
@@ -719,7 +733,7 @@ fn convert_to_from_ne_bytes(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_
         return reindent_expr(unsafe_expr, acc, target_range, &buf);
     }
 
-    let buf = generate_bytes_to_convert(&mcall, true)?;
+    let buf = generate_bytes_to_convert(&mcall, unsafe_expr, true)?;
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
@@ -1164,6 +1178,39 @@ mod tests {
     "#,
             );
     }
+
+    #[test]
+    fn read_unaligned_3() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+        let ptr = bytes.as_ptr();
+    
+        unsafe$0 { 
+            let int = ptr::read_unaligned(ptr as *const u16);
+        }
+        println!("The convert int: {:?}", int);
+        
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+        let ptr = bytes.as_ptr();
+    
+        let int = u16::from_ne_bytes(bytes[..2].try_into().unwrap());
+    
+        println!("The convert int: {:?}", int);
+        
+    }
+    "#,
+            );
+    }
+
 
     #[test]
     fn transmute_float_to_int_1() {
