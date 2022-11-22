@@ -708,6 +708,7 @@ pub(super) fn keyword(
                 Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 Some(UnsafePattern::BytesToUTFString) => return display_suggestion_from_utf8_unchecked(&target_expr, &actions),
                 Some(UnsafePattern::TransmuteTo) => return display_suggestion_mem_transmute(&target_expr, &unsafe_expr, &actions),
+                Some(UnsafePattern::ReadUnaligned) => return display_suggestion_read_unaligned(&target_expr, &unsafe_expr, &actions),
                 None => continue,
                 _ => todo!(),
             };
