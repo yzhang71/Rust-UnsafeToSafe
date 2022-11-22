@@ -674,6 +674,29 @@ fn display_suggestion_mem_transmute(target_expr: &SyntaxNode, unsafe_expr: &Bloc
 
 }
 
+fn format_suggestion_to_from_ne_bytes(mcall: CallExpr, unsafe_expr: &BlockExpr) -> Option<String> {
+
+    let mut us_docs = String::new();
+
+    format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", mcall.to_string());
+
+    us_docs.push('\n');
+    us_docs.push('\n');
+
+    let mut safe_copy_within = String::new();
+    
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+        format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_bytes_to_convert(&mcall, &unsafe_expr, false)?);
+    } else {
+        format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_bytes_to_convert(&mcall, unsafe_expr, true)?);
+    }
+
+    us_docs.push_str(&safe_copy_within);
+
+    return Some(us_docs.to_string());
+
+}
+
 fn display_suggestion_read_unaligned(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr, actions: &Vec<HoverAction>) -> Option<HoverResult> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
