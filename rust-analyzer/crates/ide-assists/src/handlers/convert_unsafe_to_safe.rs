@@ -1211,38 +1211,6 @@ mod tests {
             );
     }
 
-
-    #[test]
-    fn transmute_float_to_int_1() {
-        check_assist(
-            convert_unsafe_to_safe,
-            r#"
-    fn main() {
-
-        let int: u64 = 666;
-
-        unsafe$0 {
-            let float: f64 = mem::transmute(int);
-            println!("convert float: {:?}", float);
-        }
-    }
-    "#,
-                r#"
-    fn main() {
-
-        let int: u64 = 666;
-        let float = f64::from_bits(int);
-
-
-        unsafe$0 {
-            
-            println!("convert float: {:?}", float);
-        }
-    }
-    "#,
-            );
-    }
-
     #[test]
     fn transmute_byte_to_str_1() {
         check_assist(
