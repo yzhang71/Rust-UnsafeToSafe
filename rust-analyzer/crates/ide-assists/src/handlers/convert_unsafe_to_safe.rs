@@ -1212,37 +1212,6 @@ mod tests {
     }
 
     #[test]
-    fn transmute_byte_to_str_1() {
-        check_assist(
-            convert_unsafe_to_safe,
-            r#"
-    fn main() {
-
-        let bytes: &[u8] = &[b'r', b'u', b's', b't'];
-    
-        unsafe$0 {
-            let string: &str = mem::transmute(bytes);
-            println!("convert string: {:?}", string);
-        }
-    }
-    "#,
-                r#"
-    fn main() {
-
-        let bytes: &[u8] = &[b'r', b'u', b's', b't'];
-        let string = str::from_utf8(bytes).unwrap();
-
-
-        unsafe$0 {
-            
-            println!("convert string: {:?}", string);
-        }
-    }
-    "#,
-            );
-    }
-
-    #[test]
     fn byte_utf_string_1() {
         check_assist(
             convert_unsafe_to_safe,
