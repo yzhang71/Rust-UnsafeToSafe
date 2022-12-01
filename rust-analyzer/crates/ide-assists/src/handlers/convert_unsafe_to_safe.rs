@@ -1236,6 +1236,7 @@ mod tests {
         let string;
 
         string = str::from_utf8(&sparkle_heart).unwrap();
+    
         println!("sparkle_heart: {:?}", string);
     }
     "#,
