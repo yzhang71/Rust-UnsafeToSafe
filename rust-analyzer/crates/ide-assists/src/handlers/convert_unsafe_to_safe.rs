@@ -1264,6 +1264,7 @@ mod tests {
         let sparkle_heart : &[u8] = &[240, 159, 146, 150];
 
         let string = str::from_utf8(&sparkle_heart).unwrap();
+    
         println!("sparkle_heart: {:?}", string);
     }
     "#,
