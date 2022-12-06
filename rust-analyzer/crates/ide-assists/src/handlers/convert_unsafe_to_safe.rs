@@ -82,7 +82,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::TransmuteTo => write!(f, "mem::transmute"),
             UnsafePattern::ReadUnaligned => write!(f, "ptr::read_unaligned"),
             UnsafePattern::AsPtr => write!(f, "as_ptr"),
-            UnsafePattern::FromU32Unchecked => write!(f, "from_u32_unchecked"),
+            UnsafePattern::FromU32Unchecked => write!(f, "char::from_u32_unchecked"),
         }
     }
 }
@@ -749,17 +749,48 @@ fn convert_to_from_ne_bytes(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
+pub fn generate_from_u32(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
+
+    // Obtain the variable Expr that presents the string
+    let receiver = mcall.arg_list()?.args().nth(0)?;
+
+    let pat = expr.lhs()?;
+
+    let mut buf = String::new();
+
+    format_to!(buf, "{} = char::from_u32({}).unwrap();", pat, receiver);
+
+    buf.push('\n');
+
+    return Some(buf);
+}
+
+pub fn generate_let_from_u32(mcall: &CallExpr, let_expr: &LetStmt) -> Option<String> {
+
+    // Obtain the variable Expr that presents the string
+    let receiver = mcall.arg_list()?.args().nth(0)?;
+
+    let pat = let_expr.pat()?;
+
+    let mut buf = String::new();
+
+    format_to!(buf, "let {} = char::from_u32({}).unwrap();", pat, receiver);
+
+    buf.push('\n');
+
+    return Some(buf);
+}
+
 fn convert_to_from_u32(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
-    
-    if mcall.syntax().parent()?.kind() == BIN_EXPR {
 
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
         let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
 
         let mut target_range = target_expr.syntax().parent()?.text_range();
 
-        let buf = generate_bytes_to_convert(&mcall, unsafe_expr, false)?;
+        let buf = generate_from_u32(&mcall, &target_expr)?;
         
         if check_single_bin_expr(&target_expr)? == true {
             target_range = unsafe_range;
@@ -769,9 +800,9 @@ fn convert_to_from_u32(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range
         return reindent_expr(unsafe_expr, acc, target_range, &buf);
     }
 
-    let buf = generate_bytes_to_convert(&mcall, unsafe_expr, true)?;
-
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    let buf = generate_let_from_u32(&mcall, &let_expr)?;
 
     let mut target_range = let_expr.syntax().text_range();
     if check_single_let_expr(&let_expr) {
@@ -1092,6 +1123,10 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
         return Some(UnsafePattern::ReadUnaligned);
     }
 
+    if target_expr.to_string() == UnsafePattern::FromU32Unchecked.to_string() {
+        return Some(UnsafePattern::FromU32Unchecked);
+    }
+
     return None;
 
 }
@@ -1155,6 +1190,34 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn from_u32_unchecked_1() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+
+        let char_valid;
+
+        unsafe$0 {
+            char_valid = char::from_u32_unchecked(0x2764);
+        }
+        println!("char_valid: {:?}", char_valid);
+    }
+    "#,
+                r#"
+    fn main() {
+
+        let char_valid;
+
+        char_valid = char::from_u32(0x2764).unwrap();
+    
+        println!("char_valid: {:?}", char_valid);
+    }
+    "#,
+            );
+    }
 
     #[test]
     fn read_unaligned_1() {
