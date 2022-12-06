@@ -230,62 +230,63 @@
 
 // }
 
-use std::ptr;
+// use std::ptr;
 
-fn main() {
+// fn main() {
 
-    let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+//     let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
 
-    let ptr = bytes.as_ptr();
-    unsafe { 
-        let int = ptr::read_unaligned(ptr as *const u8);
-        println!("The convert int: {:?}", int);
-    }
+//     let ptr = bytes.as_ptr();
+//     unsafe { 
+//         let int = ptr::read_unaligned(ptr as *const u8);
+//         println!("The convert int: {:?}", int);
+//     }
 
-    let int = u8::from_ne_bytes(bytes[..1].try_into().unwrap());
-    println!("The convert int: {:?}", int);
+//     let int = u8::from_ne_bytes(bytes[..1].try_into().unwrap());
+//     println!("The convert int: {:?}", int);
 
-    let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
-    unsafe { 
-        let int = ptr::read_unaligned(bytes.as_ptr() as *const u16);
-        println!("The convert int: {:?}", int);
-    }
+//     let bytes: &[u8] = &[6, 7, 8, 4, 5, 6];
+//     unsafe { 
+//         let int = ptr::read_unaligned(bytes.as_ptr() as *const u16);
+//         println!("The convert int: {:?}", int);
+//     }
 
-    let int = u16::from_ne_bytes(bytes[..2].try_into().unwrap());
-    println!("The convert int: {:?}", int);
+//     let int = u16::from_ne_bytes(bytes[..2].try_into().unwrap());
+//     println!("The convert int: {:?}", int);
 
-    let bytes: &[u8] = &[1, 2, 3, 4, 5, 6];
-    let int;
-    unsafe { 
-        int = ptr::read_unaligned(bytes.as_ptr() as *const u32);
-        println!("The convert int: {:?}", int);
-    }
+//     let bytes: &[u8] = &[1, 2, 3, 4, 5, 6];
+//     let int;
+//     unsafe { 
+//         int = ptr::read_unaligned(bytes.as_ptr() as *const u32);
+//         println!("The convert int: {:?}", int);
+//     }
 
-    let int = u32::from_ne_bytes(bytes[..4].try_into().unwrap());
-    println!("The convert int: {:?}", int);
+//     let int = u32::from_ne_bytes(bytes[..4].try_into().unwrap());
+//     println!("The convert int: {:?}", int);
 
-    let bytes: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
-    let int;
-    unsafe { 
-        int = ptr::read_unaligned(bytes.as_ptr() as *const u64);
-        println!("The convert int: {:?}", int);
-    }
+//     let bytes: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+//     let int;
+//     unsafe { 
+//         int = ptr::read_unaligned(bytes.as_ptr() as *const u64);
+//         println!("The convert int: {:?}", int);
+//     }
 
-    let int = u64::from_ne_bytes(bytes[..8].try_into().unwrap());
-    println!("The convert int: {:?}", int);
+//     let int = u64::from_ne_bytes(bytes[..8].try_into().unwrap());
+//     println!("The convert int: {:?}", int);
     
-}
+// }
 
 use std::char;
-
 fn main() {
 
     let u_32 = 0x110000;
-    unsafe {
-        let char_valid = char::from_u32_unchecked(0x2764);
-        let char_invalid = char::from_u32_unchecked(u_32);
+    let char_valid;
 
+    unsafe {
+        char_valid = char::from_u32_unchecked(0x2764);
         println!("char_valid: {:?}", char_valid);
+        
+        let char_invalid = char::from_u32_unchecked(u_32);
         println!("char_invalid: {:?}", char_invalid);
     }
 
@@ -294,5 +295,4 @@ fn main() {
 
     println!("char_valid: {:?}", char_valid);
     println!("char_invalid: {:?}", char_invalid);
-    
 }
