@@ -275,3 +275,24 @@ fn main() {
     println!("The convert int: {:?}", int);
     
 }
+
+use std::char;
+
+fn main() {
+
+    let u_32 = 0x110000;
+    unsafe {
+        let char_valid = char::from_u32_unchecked(0x2764);
+        let char_invalid = char::from_u32_unchecked(u_32);
+
+        println!("char_valid: {:?}", char_valid);
+        println!("char_invalid: {:?}", char_invalid);
+    }
+
+    let char_valid = char::from_u32(0x2764).unwrap();
+    let char_invalid = char::from_u32(u_32);
+
+    println!("char_valid: {:?}", char_valid);
+    println!("char_invalid: {:?}", char_invalid);
+    
+}
