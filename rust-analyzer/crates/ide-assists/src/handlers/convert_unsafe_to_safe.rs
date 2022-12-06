@@ -61,7 +61,8 @@ pub enum UnsafePattern {
     BytesToUTFString,
     TransmuteTo,
     ReadUnaligned,
-    AsPtr
+    AsPtr,
+    FromU32Unchecked
 }
 
 impl std::fmt::Display for UnsafePattern {
@@ -81,6 +82,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::TransmuteTo => write!(f, "mem::transmute"),
             UnsafePattern::ReadUnaligned => write!(f, "ptr::read_unaligned"),
             UnsafePattern::AsPtr => write!(f, "as_ptr"),
+            UnsafePattern::FromU32Unchecked => write!(f, "from_u32_unchecked"),
         }
     }
 }
@@ -747,6 +749,40 @@ fn convert_to_from_ne_bytes(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
+fn convert_to_from_u32(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+    
+    if mcall.syntax().parent()?.kind() == BIN_EXPR {
+
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        let mut target_range = target_expr.syntax().parent()?.text_range();
+
+        let buf = generate_bytes_to_convert(&mcall, unsafe_expr, false)?;
+        
+        if check_single_bin_expr(&target_expr)? == true {
+            target_range = unsafe_range;
+            replace_source_code(acc, target_range, &buf);
+            return None;
+        }
+        return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    }
+
+    let buf = generate_bytes_to_convert(&mcall, unsafe_expr, true)?;
+
+    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
+
+    let mut target_range = let_expr.syntax().text_range();
+    if check_single_let_expr(&let_expr) {
+        target_range = unsafe_range;
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
+
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
+}
+
 struct CpyNonOverlapInfo {
     src_expr: IndexExpr,
     dst_expr: IndexExpr,
@@ -1103,6 +1139,7 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::BytesToUTFString) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::TransmuteTo) => return transmute_convertion(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::ReadUnaligned) => return convert_to_from_ne_bytes(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::FromU32Unchecked) => return convert_to_from_u32(acc, &target_expr, unsafe_range, &unsafe_expr),
             None => continue,
             _ => todo!(),
         };
