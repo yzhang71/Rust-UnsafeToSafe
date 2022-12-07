@@ -16,7 +16,7 @@ use ide_assists::{
     handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, 
         generate_copywithin_format, generate_let_get_mut, generate_get_mut, generate_copy_from_slice_format, check_convert_type, 
         generate_cstring_new_format, generate_bytes_len_format, generate_from_utf8, generate_let_from_utf8, generate_from_transmute,
-        generate_bytes_to_convert}
+        generate_bytes_to_convert, generate_from_u32, generate_let_from_u32}
 };
 
 use itertools::Itertools;
@@ -713,6 +713,22 @@ fn display_suggestion_read_unaligned(target_expr: &SyntaxNode, unsafe_expr: &Blo
 
 }
 
+fn display_suggestion_from_u32_unchecked(target_expr: &SyntaxNode, actions: &Vec<HoverAction>) -> Option<HoverResult> {
+
+    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    let us_description = generate_description();
+
+    let us_docs = format_suggestion_from_u32_unchecked(mcall)?;
+
+    let markup = process_unsafe_display_text(
+        &markup(Some(us_docs), us_description, None)?,
+    );
+
+    return Some(HoverResult { markup, actions: actions.to_vec() });
+
+}
+
 pub(super) fn keyword(
     sema: &Semantics<'_, RootDatabase>,
     config: &HoverConfig,
@@ -747,6 +763,7 @@ pub(super) fn keyword(
                 Some(UnsafePattern::BytesToUTFString) => return display_suggestion_from_utf8_unchecked(&target_expr, &actions),
                 Some(UnsafePattern::TransmuteTo) => return display_suggestion_mem_transmute(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::ReadUnaligned) => return display_suggestion_read_unaligned(&target_expr, &unsafe_expr, &actions),
+                Some(UnsafePattern::FromU32Unchecked) => return display_suggestion_from_u32_unchecked(&target_expr, &actions),
                 None => continue,
                 _ => todo!(),
             };
