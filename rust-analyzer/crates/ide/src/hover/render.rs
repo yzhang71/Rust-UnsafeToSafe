@@ -16,7 +16,7 @@ use ide_assists::{
     handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, 
         generate_copywithin_format, generate_let_get_mut, generate_get_mut, generate_copy_from_slice_format, check_convert_type, 
         generate_cstring_new_format, generate_bytes_len_format, generate_from_utf8, generate_let_from_utf8, generate_from_transmute,
-        generate_bytes_to_convert, generate_from_u32, generate_let_from_u32, generate_from_utf8_expr_stmt}
+        generate_bytes_to_convert, generate_from_u32, generate_let_from_u32, generate_from_utf8_expr_stmt, generate_get_mut_expr}
 };
 
 use itertools::Itertools;
@@ -383,6 +383,24 @@ fn display_suggestion_ptr_copy(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr
 fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
     let mut us_docs = String::new();
+
+    if mcall.syntax().parent()?.kind() == STMT_LIST{
+
+        let target_expr = &mcall;
+
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", target_expr.to_string());
+
+        us_docs.push('\n');
+        us_docs.push('\n');
+
+        let mut safe_copy_within = String::new();
+
+        format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_get_mut_expr(&mcall)?);
+
+        us_docs.push_str(&safe_copy_within);
+
+        return Some(us_docs.to_string());
+    }
 
     if mcall.syntax().parent()?.kind() == BIN_EXPR {
 
