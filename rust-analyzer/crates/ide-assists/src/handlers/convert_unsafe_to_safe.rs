@@ -59,6 +59,7 @@ pub enum UnsafePattern {
     CStringFromVec,
     CStringLength,
     BytesToUTFString,
+    STDBytesToUTFString,
     TransmuteTo,
     ReadUnaligned,
     AsPtr,
@@ -79,6 +80,7 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::CStringFromVec => write!(f, "CString::from_vec_unchecked"),
             UnsafePattern::CStringLength => write!(f, "libc::strlen"),
             UnsafePattern::BytesToUTFString => write!(f, "str::from_utf8_unchecked"),
+            UnsafePattern::STDBytesToUTFString => write!(f, "std::str::from_utf8_unchecked"),
             UnsafePattern::TransmuteTo => write!(f, "mem::transmute"),
             UnsafePattern::ReadUnaligned => write!(f, "ptr::read_unaligned"),
             UnsafePattern::AsPtr => write!(f, "as_ptr"),
@@ -480,7 +482,21 @@ pub fn generate_from_utf8(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
 
     let mut buf = String::new();
 
-    format_to!(buf, "{} = str::from_utf8({}).unwrap();", pat, receiver);
+    format_to!(buf, "{} = std::str::from_utf8({}).unwrap();", pat, receiver);
+
+    buf.push('\n');
+
+    return Some(buf);
+}
+
+pub fn generate_from_utf8_expr_stmt(mcall: &CallExpr) -> Option<String> {
+
+    // Obtain the variable Expr that presents the string
+    let receiver = mcall.arg_list()?.args().nth(0)?;
+
+    let mut buf = String::new();
+
+    format_to!(buf, "std::str::from_utf8({}).unwrap();", receiver);
 
     buf.push('\n');
 
@@ -496,7 +512,7 @@ pub fn generate_let_from_utf8(mcall: &CallExpr, let_expr: &LetStmt) -> Option<St
 
     let mut buf = String::new();
 
-    format_to!(buf, "let {} = str::from_utf8({}).unwrap();", pat, receiver);
+    format_to!(buf, "let {} = std::str::from_utf8({}).unwrap();", pat, receiver);
 
     buf.push('\n');
 
@@ -506,6 +522,36 @@ pub fn generate_let_from_utf8(mcall: &CallExpr, let_expr: &LetStmt) -> Option<St
 fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
+
+    if mcall.syntax().parent()?.kind() == STMT_LIST{
+        let target_expr = &mcall;
+
+        let mut target_range = target_expr.syntax().parent()?.text_range();
+
+        let buf = generate_from_utf8_expr_stmt(&mcall)?;
+        
+        if check_single_call_expr(&target_expr)? == true {
+            target_range = unsafe_range;
+            replace_source_code(acc, target_range, &buf);
+            return None;
+        }
+        return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    }
+
+    if mcall.syntax().parent()?.kind() == EXPR_STMT {
+        let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
+
+        let mut target_range = target_expr.syntax().parent()?.text_range();
+
+        let buf = generate_from_utf8_expr_stmt(&mcall)?;
+        
+        if check_single_expr_stmt(&target_expr)? == true {
+            target_range = unsafe_range;
+            replace_source_code(acc, target_range, &buf);
+            return None;
+        }
+        return reindent_expr(unsafe_expr, acc, target_range, &buf);
+    }
 
     if mcall.syntax().parent()?.kind() == BIN_EXPR {
         let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
@@ -962,6 +1008,24 @@ fn check_single_bin_expr(target_expr: &BinExpr) -> Option<bool> {
     return Some(false);
 }
 
+fn check_single_expr_stmt(target_expr: &ExprStmt) -> Option<bool> {
+
+    // Check if the unsafe bloack only contains one expr
+    if target_expr.syntax().parent()?.prev_sibling().is_none() && target_expr.syntax().parent()?.next_sibling().is_none() {
+        return Some(true);
+    }
+    return Some(false);
+}
+
+fn check_single_call_expr(target_expr: &CallExpr) -> Option<bool> {
+
+    // Check if the unsafe bloack only contains one expr
+    if target_expr.syntax().prev_sibling().is_none() && target_expr.syntax().next_sibling().is_none() {
+        return Some(true);
+    }
+    return Some(false);
+}
+
 fn convert_to_cstring_new(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
@@ -1111,7 +1175,8 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
         return Some(UnsafePattern::CStringLength);
     }
 
-    if target_expr.to_string() == UnsafePattern::BytesToUTFString.to_string() {
+    if target_expr.to_string() == UnsafePattern::BytesToUTFString.to_string() ||
+        target_expr.to_string() == UnsafePattern::STDBytesToUTFString.to_string() {
         return Some(UnsafePattern::BytesToUTFString);
     }
 
@@ -1323,7 +1388,7 @@ mod tests {
         let string;
 
         unsafe$0 {
-            string = str::from_utf8_unchecked(&sparkle_heart)
+            string = std::str::from_utf8_unchecked(&sparkle_heart)
         }
         println!("sparkle_heart: {:?}", string);
     }
@@ -1335,7 +1400,7 @@ mod tests {
 
         let string;
 
-        string = str::from_utf8(&sparkle_heart).unwrap();
+        string = std::str::from_utf8(&sparkle_heart).unwrap()
     
         println!("sparkle_heart: {:?}", string);
     }
@@ -1353,7 +1418,7 @@ mod tests {
         let sparkle_heart : &[u8] = &[240, 159, 146, 150];
 
         unsafe$0 {
-            let string = str::from_utf8_unchecked(&sparkle_heart);
+            std::str::from_utf8_unchecked(&sparkle_heart)
         }
         println!("sparkle_heart: {:?}", string);
     }
@@ -1363,7 +1428,7 @@ mod tests {
 
         let sparkle_heart : &[u8] = &[240, 159, 146, 150];
 
-        let string = str::from_utf8(&sparkle_heart).unwrap();
+        std::str::from_utf8(&sparkle_heart).unwrap()
     
         println!("sparkle_heart: {:?}", string);
     }
