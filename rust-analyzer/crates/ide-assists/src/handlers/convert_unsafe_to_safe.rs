@@ -960,8 +960,6 @@ fn format_index_expr(expr_index: &IndexExpr, count: &String) -> Option<String> {
         format_to!(buf, "{}[{}..{} + {}]", expr_index.base()?, lhs.to_string(), lhs.to_string(), count);
     }
 
-    buf.push('\n');
-
     return Some(buf);
 
 }
