@@ -60,6 +60,8 @@ pub enum UnsafePattern {
     CStringLength,
     BytesToUTFString,
     STDBytesToUTFString,
+    BytesToUTFStringMut,
+    STDBytesToUTFStringMut,
     TransmuteTo,
     ReadUnaligned,
     AsPtr,
@@ -81,6 +83,8 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::CStringLength => write!(f, "libc::strlen"),
             UnsafePattern::BytesToUTFString => write!(f, "str::from_utf8_unchecked"),
             UnsafePattern::STDBytesToUTFString => write!(f, "std::str::from_utf8_unchecked"),
+            UnsafePattern::BytesToUTFStringMut => write!(f, "str::from_utf8_unchecked_mut"),
+            UnsafePattern::STDBytesToUTFStringMut => write!(f, "std::str::from_utf8_unchecked_mut"),
             UnsafePattern::TransmuteTo => write!(f, "mem::transmute"),
             UnsafePattern::ReadUnaligned => write!(f, "ptr::read_unaligned"),
             UnsafePattern::AsPtr => write!(f, "as_ptr"),
@@ -528,9 +532,7 @@ pub fn generate_from_utf8_expr_stmt(mcall: &CallExpr) -> Option<String> {
 
     let mut buf = String::new();
 
-    format_to!(buf, "std::str::from_utf8({}).unwrap();", receiver);
-
-    buf.push('\n');
+    format_to!(buf, "std::str::from_utf8({}).unwrap()", receiver);
 
     return Some(buf);
 }
@@ -558,12 +560,12 @@ fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     if mcall.syntax().parent()?.kind() == STMT_LIST{
         let target_expr = &mcall;
 
-        let mut target_range = target_expr.syntax().parent()?.text_range();
+        let target_range = target_expr.syntax().parent()?.parent()?.text_range();
 
         let buf = generate_from_utf8_expr_stmt(&mcall)?;
         
         if check_single_call_expr(&target_expr)? == true {
-            target_range = unsafe_range;
+            // target_range = unsafe_range;
             replace_source_code(acc, target_range, &buf);
             return None;
         }
@@ -573,12 +575,12 @@ fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_rang
     if mcall.syntax().parent()?.kind() == EXPR_STMT {
         let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
 
-        let mut target_range = target_expr.syntax().parent()?.text_range();
+        let target_range = target_expr.syntax().parent()?.parent()?.text_range();
 
         let buf = generate_from_utf8_expr_stmt(&mcall)?;
         
         if check_single_expr_stmt(&target_expr)? == true {
-            target_range = unsafe_range;
+            // target_range = unsafe_range;
             replace_source_code(acc, target_range, &buf);
             return None;
         }
@@ -1456,9 +1458,7 @@ mod tests {
 
         let sparkle_heart : &[u8] = &[240, 159, 146, 150];
 
-        unsafe$0 {
-            std::str::from_utf8_unchecked(&sparkle_heart)
-        }
+        string = unsafe$0 {std::str::from_utf8_unchecked(&sparkle_heart)};
         println!("sparkle_heart: {:?}", string);
     }
     "#,
@@ -1467,8 +1467,7 @@ mod tests {
 
         let sparkle_heart : &[u8] = &[240, 159, 146, 150];
 
-        std::str::from_utf8(&sparkle_heart).unwrap()
-    
+        string = std::str::from_utf8(&sparkle_heart).unwrap();
         println!("sparkle_heart: {:?}", string);
     }
     "#,
