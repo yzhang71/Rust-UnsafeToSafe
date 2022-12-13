@@ -562,7 +562,7 @@ pub fn generate_from_utf8_mut(mcall: &CallExpr, expr: &BinExpr) -> Option<String
 
     let mut buf = String::new();
 
-    format_to!(buf, "{} = std::str::from_utf8({}).unwrap();", pat, receiver);
+    format_to!(buf, "{} = std::str::from_utf8(&mut {}).unwrap();", pat, receiver);
 
     buf.push('\n');
 
@@ -576,7 +576,7 @@ pub fn generate_from_utf8_expr_stmt_mut(mcall: &CallExpr) -> Option<String> {
 
     let mut buf = String::new();
 
-    format_to!(buf, "std::str::from_utf8({}).unwrap()", receiver);
+    format_to!(buf, "std::str::from_utf8(&mut {}).unwrap()", receiver);
 
     return Some(buf);
 }
@@ -590,7 +590,7 @@ pub fn generate_let_from_utf8_mut(mcall: &CallExpr, let_expr: &LetStmt) -> Optio
 
     let mut buf = String::new();
 
-    format_to!(buf, "let {} = std::str::from_utf8({}).unwrap();", pat, receiver);
+    format_to!(buf, "let {} = std::str::from_utf8(&mut {}).unwrap();", pat, receiver);
 
     buf.push('\n');
 
