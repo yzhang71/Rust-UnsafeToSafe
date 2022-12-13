@@ -597,7 +597,7 @@ pub fn generate_let_from_utf8_mut(mcall: &CallExpr, let_expr: &LetStmt) -> Optio
     return Some(buf);
 }
 
-fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+fn convert_to_from_utf8_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
