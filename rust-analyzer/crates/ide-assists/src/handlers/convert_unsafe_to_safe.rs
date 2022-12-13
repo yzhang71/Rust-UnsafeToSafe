@@ -509,7 +509,7 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
     return reindent_expr(unsafe_expr, acc, target_range, &buf);
 }
 
-pub fn generate_from_utf8(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
+pub fn generate_from_utf8(mcall: &CallExpr, expr: &BinExpr, mut_sign: bool) -> Option<String> {
 
     // Obtain the variable Expr that presents the string
     let receiver = mcall.arg_list()?.args().nth(0)?;
@@ -518,26 +518,34 @@ pub fn generate_from_utf8(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
 
     let mut buf = String::new();
 
-    format_to!(buf, "{} = std::str::from_utf8({}).unwrap();", pat, receiver);
+    if !mut_sign {
+        format_to!(buf, "{} = std::str::from_utf8({}).unwrap();", pat, receiver);
+    } else {
+        format_to!(buf, "{} = std::str::from_utf8_mut({}).unwrap();", pat, receiver);
+    }
 
     buf.push('\n');
 
     return Some(buf);
 }
 
-pub fn generate_from_utf8_expr_stmt(mcall: &CallExpr) -> Option<String> {
+pub fn generate_from_utf8_expr_stmt(mcall: &CallExpr, mut_sign: bool) -> Option<String> {
 
     // Obtain the variable Expr that presents the string
     let receiver = mcall.arg_list()?.args().nth(0)?;
 
     let mut buf = String::new();
 
-    format_to!(buf, "std::str::from_utf8({}).unwrap()", receiver);
+    if !mut_sign {
+        format_to!(buf, "std::str::from_utf8({}).unwrap()", receiver);
+    } else {
+        format_to!(buf, "std::str::from_utf8_mut({}).unwrap()", receiver);
+    }
 
     return Some(buf);
 }
 
-pub fn generate_let_from_utf8(mcall: &CallExpr, let_expr: &LetStmt) -> Option<String> {
+pub fn generate_let_from_utf8(mcall: &CallExpr, let_expr: &LetStmt, mut_sign: bool) -> Option<String> {
 
     // Obtain the variable Expr that presents the string
     let receiver = mcall.arg_list()?.args().nth(0)?;
@@ -546,58 +554,18 @@ pub fn generate_let_from_utf8(mcall: &CallExpr, let_expr: &LetStmt) -> Option<St
 
     let mut buf = String::new();
 
-    format_to!(buf, "let {} = std::str::from_utf8({}).unwrap();", pat, receiver);
+    if !mut_sign {
+        format_to!(buf, "let {} = std::str::from_utf8({}).unwrap();", pat, receiver);
+    } else {
+        format_to!(buf, "let {} = std::str::from_utf8_mut({}).unwrap();", pat, receiver);
+    }
 
     buf.push('\n');
 
     return Some(buf);
 }
 
-pub fn generate_from_utf8_mut(mcall: &CallExpr, expr: &BinExpr) -> Option<String> {
-
-    // Obtain the variable Expr that presents the string
-    let receiver = mcall.arg_list()?.args().nth(0)?;
-
-    let pat = expr.lhs()?;
-
-    let mut buf = String::new();
-
-    format_to!(buf, "{} = std::str::from_utf8(&mut {}).unwrap();", pat, receiver);
-
-    buf.push('\n');
-
-    return Some(buf);
-}
-
-pub fn generate_from_utf8_expr_stmt_mut(mcall: &CallExpr) -> Option<String> {
-
-    // Obtain the variable Expr that presents the string
-    let receiver = mcall.arg_list()?.args().nth(0)?;
-
-    let mut buf = String::new();
-
-    format_to!(buf, "std::str::from_utf8(&mut {}).unwrap()", receiver);
-
-    return Some(buf);
-}
-
-pub fn generate_let_from_utf8_mut(mcall: &CallExpr, let_expr: &LetStmt) -> Option<String> {
-
-    // Obtain the variable Expr that presents the string
-    let receiver = mcall.arg_list()?.args().nth(0)?;
-
-    let pat = let_expr.pat()?;
-
-    let mut buf = String::new();
-
-    format_to!(buf, "let {} = std::str::from_utf8(&mut {}).unwrap();", pat, receiver);
-
-    buf.push('\n');
-
-    return Some(buf);
-}
-
-fn convert_to_from_utf8_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
+fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr, mut_sign: bool) -> Option<()> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
@@ -606,7 +574,7 @@ fn convert_to_from_utf8_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_
 
         let target_range = target_expr.syntax().parent()?.parent()?.text_range();
 
-        let buf = generate_from_utf8_expr_stmt_mut(&mcall)?;
+        let buf = generate_from_utf8_expr_stmt(&mcall, mut_sign)?;
         
         if check_single_call_expr(&target_expr)? == true {
             // target_range = unsafe_range;
@@ -621,7 +589,7 @@ fn convert_to_from_utf8_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_
 
         let target_range = target_expr.syntax().parent()?.parent()?.text_range();
 
-        let buf = generate_from_utf8_expr_stmt_mut(&mcall)?;
+        let buf = generate_from_utf8_expr_stmt(&mcall, mut_sign)?;
         
         if check_single_expr_stmt(&target_expr)? == true {
             // target_range = unsafe_range;
@@ -636,7 +604,7 @@ fn convert_to_from_utf8_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_
 
         let mut target_range = target_expr.syntax().parent()?.text_range();
 
-        let buf = generate_from_utf8_mut(&mcall, &target_expr)?;
+        let buf = generate_from_utf8(&mcall, &target_expr, mut_sign)?;
         
         if check_single_bin_expr(&target_expr)? == true {
             target_range = unsafe_range;
@@ -648,70 +616,7 @@ fn convert_to_from_utf8_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_
 
     let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
 
-    let buf = generate_let_from_utf8_mut(&mcall, &let_expr)?;
-
-    let mut target_range = let_expr.syntax().text_range();
-    if check_single_let_expr(&let_expr) {
-        target_range = unsafe_range;
-        replace_source_code(acc, target_range, &buf);
-        return None;
-    }
-
-    return reindent_expr(unsafe_expr, acc, target_range, &buf);
-}
-
-fn convert_to_from_utf8(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range: TextRange, unsafe_expr: &BlockExpr) -> Option<()> {
-
-    let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
-
-    if mcall.syntax().parent()?.kind() == STMT_LIST{
-        let target_expr = &mcall;
-
-        let target_range = target_expr.syntax().parent()?.parent()?.text_range();
-
-        let buf = generate_from_utf8_expr_stmt(&mcall)?;
-        
-        if check_single_call_expr(&target_expr)? == true {
-            // target_range = unsafe_range;
-            replace_source_code(acc, target_range, &buf);
-            return None;
-        }
-        return reindent_expr(unsafe_expr, acc, target_range, &buf);
-    }
-
-    if mcall.syntax().parent()?.kind() == EXPR_STMT {
-        let target_expr = mcall.syntax().parent().and_then(ast::ExprStmt::cast)?;
-
-        let target_range = target_expr.syntax().parent()?.parent()?.text_range();
-
-        let buf = generate_from_utf8_expr_stmt(&mcall)?;
-        
-        if check_single_expr_stmt(&target_expr)? == true {
-            // target_range = unsafe_range;
-            replace_source_code(acc, target_range, &buf);
-            return None;
-        }
-        return reindent_expr(unsafe_expr, acc, target_range, &buf);
-    }
-
-    if mcall.syntax().parent()?.kind() == BIN_EXPR {
-        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
-
-        let mut target_range = target_expr.syntax().parent()?.text_range();
-
-        let buf = generate_from_utf8(&mcall, &target_expr)?;
-        
-        if check_single_bin_expr(&target_expr)? == true {
-            target_range = unsafe_range;
-            replace_source_code(acc, target_range, &buf);
-            return None;
-        }
-        return reindent_expr(unsafe_expr, acc, target_range, &buf);
-    }
-
-    let let_expr = mcall.syntax().parent().and_then(ast::LetStmt::cast)?;
-
-    let buf = generate_let_from_utf8(&mcall, &let_expr)?;
+    let buf = generate_let_from_utf8(&mcall, &let_expr, mut_sign)?;
 
     let mut target_range = let_expr.syntax().text_range();
     if check_single_let_expr(&let_expr) {
@@ -1389,8 +1294,8 @@ pub(crate) fn convert_unsafe_to_safe(acc: &mut Assists, ctx: &AssistContext<'_>)
             Some(UnsafePattern::CStringLength) => return convert_to_cstring_bytes_len(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheckMut) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::GetUncheck) => return convert_to_get_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
-            Some(UnsafePattern::BytesToUTFString) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr),
-            Some(UnsafePattern::BytesToUTFStringMut) => return convert_to_from_utf8_mut(acc, &target_expr, unsafe_range, &unsafe_expr),
+            Some(UnsafePattern::BytesToUTFString) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr, false),
+            Some(UnsafePattern::BytesToUTFStringMut) => return convert_to_from_utf8(acc, &target_expr, unsafe_range, &unsafe_expr, true),
             Some(UnsafePattern::TransmuteTo) => return transmute_convertion(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::ReadUnaligned) => return convert_to_from_ne_bytes(acc, &target_expr, unsafe_range, &unsafe_expr),
             Some(UnsafePattern::FromU32Unchecked) => return convert_to_from_u32(acc, &target_expr, unsafe_range, &unsafe_expr),
@@ -1554,7 +1459,7 @@ mod tests {
 
         let string;
 
-        string = std::str::from_utf8(&sparkle_heart).unwrap()
+        string = std::str::from_utf8(&sparkle_heart).unwrap();
     
         println!("sparkle_heart: {:?}", string);
     }
