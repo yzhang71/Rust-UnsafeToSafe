@@ -1,5 +1,5 @@
 //! Logic for rendering the different hover messages
-use std::fmt::Display;
+use std::{fmt::Display, string};
 
 use either::Either;
 use hir::{AsAssocItem, AttributeTemplate, HasAttrs, HasSource, HirDisplay, Semantics, TypeInfo};
@@ -600,7 +600,7 @@ fn display_suggestion_cstring_bytes_len(target_expr: &SyntaxNode, actions: &Vec<
 
 }
 
-fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool) -> Option<String> {
+fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool, string_sign: bool) -> Option<String> {
 
     let mut us_docs = String::new();
 
@@ -615,7 +615,7 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool) -> Opt
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_utf8_expr_stmt(&mcall, mut_sign)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_utf8_expr_stmt(&mcall, mut_sign, string_sign)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -633,7 +633,7 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool) -> Opt
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_utf8_expr_stmt(&mcall, mut_sign)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_utf8_expr_stmt(&mcall, mut_sign, string_sign)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -651,7 +651,7 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool) -> Opt
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_utf8(&mcall, &target_expr, mut_sign)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_utf8(&mcall, &target_expr, mut_sign, string_sign)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -667,7 +667,7 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool) -> Opt
 
     let mut safe_cstring_new = String::new();
 
-    format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_let_from_utf8(&mcall, &let_expr, mut_sign)?);
+    format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_let_from_utf8(&mcall, &let_expr, mut_sign, string_sign)?);
 
     us_docs.push_str(&safe_cstring_new);
 
@@ -675,13 +675,13 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool) -> Opt
 
 }
 
-fn display_suggestion_from_utf8_unchecked(target_expr: &SyntaxNode, actions: &Vec<HoverAction>, mut_sign: bool) -> Option<HoverResult> {
+fn display_suggestion_from_utf8_unchecked(target_expr: &SyntaxNode, actions: &Vec<HoverAction>, mut_sign: bool, string_sign: bool) -> Option<HoverResult> {
 
     let mcall = target_expr.parent().and_then(ast::CallExpr::cast)?;
 
     let us_description = generate_description();
 
-    let us_docs = format_suggestion_from_utf8_unchecked(mcall, mut_sign)?;
+    let us_docs = format_suggestion_from_utf8_unchecked(mcall, mut_sign, string_sign)?;
 
     let markup = process_unsafe_display_text(
         &markup(Some(us_docs), us_description, None)?,
@@ -853,8 +853,9 @@ pub(super) fn keyword(
                 Some(UnsafePattern::CStringLength) => return display_suggestion_cstring_bytes_len(&target_expr, &actions),
                 Some(UnsafePattern::GetUncheckMut) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
                 Some(UnsafePattern::GetUncheck) => return display_suggestion_get_uncheck_mut(&target_expr, &actions),
-                Some(UnsafePattern::BytesToUTFString) => return display_suggestion_from_utf8_unchecked(&target_expr, &actions, false),
-                Some(UnsafePattern::BytesToUTFStringMut) => return display_suggestion_from_utf8_unchecked(&target_expr, &actions, true),
+                Some(UnsafePattern::BytesToUTFString) => return display_suggestion_from_utf8_unchecked(&target_expr, &actions, false, false),
+                Some(UnsafePattern::BytesToUTFStringMut) => return display_suggestion_from_utf8_unchecked(&target_expr, &actions, true, false),
+                Some(UnsafePattern::StringBytesToUTFString) => return display_suggestion_from_utf8_unchecked(&target_expr, &actions, false, true),
                 Some(UnsafePattern::TransmuteTo) => return display_suggestion_mem_transmute(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::ReadUnaligned) => return display_suggestion_read_unaligned(&target_expr, &unsafe_expr, &actions),
                 Some(UnsafePattern::FromU32Unchecked) => return display_suggestion_from_u32_unchecked(&target_expr, &actions),
