@@ -16,7 +16,8 @@ use ide_assists::{
     handlers::convert_unsafe_to_safe::{UnsafePattern, generate_safevec_format, generate_resizevec_format, 
         generate_copywithin_format, generate_let_get_mut, generate_get_mut, generate_copy_from_slice_format, check_convert_type, 
         generate_cstring_new_format, generate_bytes_len_format, generate_from_utf8, generate_let_from_utf8, generate_from_transmute,
-        generate_bytes_to_convert, generate_from_u32, generate_let_from_u32, generate_from_utf8_expr_stmt, generate_get_mut_expr}
+        generate_bytes_to_convert, generate_from_u32, generate_let_from_u32, generate_from_utf8_expr_stmt, generate_get_mut_expr,
+        generate_from_u32_expr_stmt}
 };
 
 use itertools::Itertools;
@@ -770,6 +771,42 @@ fn display_suggestion_read_unaligned(target_expr: &SyntaxNode, unsafe_expr: &Blo
 fn format_suggestion_from_u32_unchecked(mcall: CallExpr) -> Option<String> {
 
     let mut us_docs = String::new();
+
+    if mcall.syntax().parent()?.kind() == STMT_LIST{
+
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", target_expr.to_string());
+    
+        us_docs.push('\n');
+        us_docs.push('\n');
+    
+        let mut safe_cstring_new = String::new();
+    
+        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_u32_expr_stmt(&mcall)?);
+        
+        us_docs.push_str(&safe_cstring_new);
+    
+        return Some(us_docs.to_string());
+    }
+
+    if mcall.syntax().parent()?.kind() == EXPR_STMT {
+
+        let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
+
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", target_expr.to_string());
+    
+        us_docs.push('\n');
+        us_docs.push('\n');
+    
+        let mut safe_cstring_new = String::new();
+    
+        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_from_u32_expr_stmt(&mcall)?);
+        
+        us_docs.push_str(&safe_cstring_new);
+    
+        return Some(us_docs.to_string());
+    }
 
     if mcall.syntax().parent()?.kind() == BIN_EXPR {
 
