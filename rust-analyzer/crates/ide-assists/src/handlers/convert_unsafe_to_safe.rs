@@ -60,8 +60,10 @@ pub enum UnsafePattern {
     CStringLength,
     StringBytesToUTFString,
     BytesToUTFString,
+    CoreBytesToUTFString,
     STDBytesToUTFString,
     BytesToUTFStringMut,
+    CoreBytesToUTFStringMut,
     STDBytesToUTFStringMut,
     TransmuteTo,
     ReadUnaligned,
@@ -86,8 +88,10 @@ impl std::fmt::Display for UnsafePattern {
             UnsafePattern::StringBytesToUTFString => write!(f, "String::from_utf8_unchecked"),
             UnsafePattern::BytesToUTFString => write!(f, "str::from_utf8_unchecked"),
             UnsafePattern::STDBytesToUTFString => write!(f, "std::str::from_utf8_unchecked"),
+            UnsafePattern::CoreBytesToUTFString => write!(f, "core::str::from_utf8_unchecked"),
             UnsafePattern::BytesToUTFStringMut => write!(f, "str::from_utf8_unchecked_mut"),
             UnsafePattern::STDBytesToUTFStringMut => write!(f, "std::str::from_utf8_unchecked_mut"),
+            UnsafePattern::CoreBytesToUTFStringMut => write!(f, "core::str::from_utf8_unchecked_mut"),
             UnsafePattern::TransmuteTo => write!(f, "mem::transmute"),
             UnsafePattern::ReadUnaligned => write!(f, "ptr::read_unaligned"),
             UnsafePattern::AsPtr => write!(f, "as_ptr"),
@@ -1297,7 +1301,8 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
     }
 
     if target_expr.to_string() == UnsafePattern::BytesToUTFString.to_string() ||
-        target_expr.to_string() == UnsafePattern::STDBytesToUTFString.to_string() {
+        target_expr.to_string() == UnsafePattern::STDBytesToUTFString.to_string() ||
+            target_expr.to_string() == UnsafePattern::CoreBytesToUTFString.to_string(){
         return Some(UnsafePattern::BytesToUTFString);
     }
 
@@ -1306,7 +1311,8 @@ pub fn check_convert_type(target_expr: &SyntaxNode, unsafe_expr: &BlockExpr) -> 
     }
 
     if target_expr.to_string() == UnsafePattern::BytesToUTFStringMut.to_string() ||
-        target_expr.to_string() == UnsafePattern::STDBytesToUTFStringMut.to_string() {
+        target_expr.to_string() == UnsafePattern::STDBytesToUTFStringMut.to_string() ||
+            target_expr.to_string() == UnsafePattern::CoreBytesToUTFStringMut.to_string() {
         return Some(UnsafePattern::BytesToUTFStringMut);
     }
 
