@@ -17,14 +17,14 @@ use ide_assists::{
         generate_copywithin_format, generate_let_get_mut, generate_get_mut, generate_copy_from_slice_format, check_convert_type, 
         generate_cstring_new_format, generate_bytes_len_format, generate_from_utf8, generate_let_from_utf8, generate_from_transmute,
         generate_bytes_to_convert, generate_from_u32, generate_let_from_u32, generate_from_utf8_expr_stmt, generate_get_mut_expr,
-        generate_from_u32_expr_stmt}
+        generate_from_u32_expr_stmt, generate_get_prefix_mut_expr}
 };
 
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
     algo, ast::{self, MethodCallExpr, CallExpr, BlockExpr}, match_ast, AstNode, Direction,
-    SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW, STMT_LIST, BIN_EXPR, EXPR_STMT},
+    SyntaxKind::{LET_EXPR, LET_STMT, UNSAFE_KW, STMT_LIST, BIN_EXPR, EXPR_STMT, PREFIX_EXPR},
     SyntaxToken, T, SyntaxNode,
 };
 
@@ -351,15 +351,15 @@ fn format_suggestion_ptr_copy(mcall: &CallExpr, unsafe_expr: &BlockExpr) -> Opti
     us_docs.push('\n');
     us_docs.push('\n');
 
-    let mut safe_copy_within = String::new();
+    let mut safe_version = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_copywithin_format(&mcall, &unsafe_expr)?);
+    format_to!(safe_version, "**```+++```** **```{}```**", generate_copywithin_format(&mcall, &unsafe_expr)?);
 
     let modify = generate_modify();
 
     us_docs.push_str(&modify);
 
-    us_docs.push_str(&safe_copy_within);
+    us_docs.push_str(&safe_version);
 
     return Some(us_docs.to_string());
 
@@ -385,6 +385,24 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
     let mut us_docs = String::new();
 
+    if mcall.syntax().parent()?.kind() == PREFIX_EXPR {
+
+        let target_expr = &mcall;
+
+        format_to!(us_docs, "**```---```** **~~```unsafe {{ {} }};```~~**", target_expr.to_string());
+
+        us_docs.push('\n');
+        us_docs.push('\n');
+
+        let mut safe_version = String::new();
+
+        format_to!(safe_version, "**```+++```** **```{}```**", generate_get_prefix_mut_expr(&mcall)?);
+
+        us_docs.push_str(&safe_version);
+
+        return Some(us_docs.to_string());
+    }
+
     if mcall.syntax().parent()?.kind() == STMT_LIST{
 
         let target_expr = &mcall;
@@ -394,11 +412,11 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
         us_docs.push('\n');
         us_docs.push('\n');
 
-        let mut safe_copy_within = String::new();
+        let mut safe_version = String::new();
 
-        format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_get_mut_expr(&mcall)?);
+        format_to!(safe_version, "**```+++```** **```{}```**", generate_get_mut_expr(&mcall)?);
 
-        us_docs.push_str(&safe_copy_within);
+        us_docs.push_str(&safe_version);
 
         return Some(us_docs.to_string());
     }
@@ -412,11 +430,11 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
         us_docs.push('\n');
         us_docs.push('\n');
 
-        let mut safe_copy_within = String::new();
+        let mut safe_version = String::new();
 
-        format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_get_mut(&mcall, &target_expr)?);
+        format_to!(safe_version, "**```+++```** **```{}```**", generate_get_mut(&mcall, &target_expr)?);
 
-        us_docs.push_str(&safe_copy_within);
+        us_docs.push_str(&safe_version);
 
         return Some(us_docs.to_string());
 
@@ -429,11 +447,11 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
     us_docs.push('\n');
     us_docs.push('\n');
 
-    let mut safe_copy_within = String::new();
+    let mut safe_version = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_let_get_mut(&mcall, &let_expr)?);
+    format_to!(safe_version, "**```+++```** **```{}```**", generate_let_get_mut(&mcall, &let_expr)?);
 
-    us_docs.push_str(&safe_copy_within);
+    us_docs.push_str(&safe_version);
 
     return Some(us_docs.to_string());
 
@@ -464,11 +482,11 @@ fn format_suggestion_ptr_copy_nonoverlapping(mcall: CallExpr, unsafe_expr: &Bloc
     us_docs.push('\n');
     us_docs.push('\n');
 
-    let mut safe_copy_within = String::new();
+    let mut safe_version = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_copy_from_slice_format(&mcall, &unsafe_expr)?);
+    format_to!(safe_version, "**```+++```** **```{}```**", generate_copy_from_slice_format(&mcall, &unsafe_expr)?);
 
-    us_docs.push_str(&safe_copy_within);
+    us_docs.push_str(&safe_version);
 
     return Some(us_docs.to_string());
 
@@ -703,11 +721,11 @@ fn format_suggestion_to_safe_convert(mcall: CallExpr, unsafe_expr: &BlockExpr) -
     us_docs.push('\n');
     us_docs.push('\n');
 
-    let mut safe_copy_within = String::new();
+    let mut safe_version = String::new();
 
-    format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_from_transmute(&mcall, &let_expr, &unsafe_expr)?);
+    format_to!(safe_version, "**```+++```** **```{}```**", generate_from_transmute(&mcall, &let_expr, &unsafe_expr)?);
 
-    us_docs.push_str(&safe_copy_within);
+    us_docs.push_str(&safe_version);
 
     return Some(us_docs.to_string());
 
@@ -738,15 +756,15 @@ fn format_suggestion_to_from_ne_bytes(mcall: CallExpr, unsafe_expr: &BlockExpr) 
     us_docs.push('\n');
     us_docs.push('\n');
 
-    let mut safe_copy_within = String::new();
+    let mut safe_version = String::new();
     
     if mcall.syntax().parent()?.kind() == BIN_EXPR {
-        format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_bytes_to_convert(&mcall, &unsafe_expr, false)?);
+        format_to!(safe_version, "**```+++```** **```{}```**", generate_bytes_to_convert(&mcall, &unsafe_expr, false)?);
     } else {
-        format_to!(safe_copy_within, "**```+++```** **```{}```**", generate_bytes_to_convert(&mcall, unsafe_expr, true)?);
+        format_to!(safe_version, "**```+++```** **```{}```**", generate_bytes_to_convert(&mcall, unsafe_expr, true)?);
     }
 
-    us_docs.push_str(&safe_copy_within);
+    us_docs.push_str(&safe_version);
 
     return Some(us_docs.to_string());
 
