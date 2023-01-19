@@ -5,7 +5,7 @@ use crate::{
 
 use syntax::{
     ast::{IndexExpr, BlockExpr, MethodCallExpr, ExprStmt, CallExpr, edit_in_place::Indent, LetStmt, BinExpr},
-    SyntaxKind::{STMT_LIST, EXPR_STMT, INDEX_EXPR, LET_STMT, PATH_EXPR, BIN_EXPR}, 
+    SyntaxKind::{STMT_LIST, EXPR_STMT, INDEX_EXPR, LET_STMT, PATH_EXPR, BIN_EXPR, PREFIX_EXPR}, 
     TextSize, Direction
 };
 use itertools::Itertools;
@@ -421,6 +421,24 @@ pub fn generate_let_get_mut(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Optio
     return Some(buf);
 }
 
+pub fn generate_get__prefix_mut_expr(mcall: &MethodCallExpr) -> Option<String> {
+
+    // Obtain the variable Expr that presents the buffer/vector
+    let receiver = mcall.receiver()?;
+
+    let closure_body = mcall.arg_list()?.args().exactly_one().ok()?;
+
+    let mut buf = String::new();
+
+    if mcall.to_string().contains("mut") {
+        format_to!(buf, "*{}.get_mut({}).unwrap()", receiver, closure_body);
+    } else {
+        format_to!(buf, "*{}.get({}).unwrap()", receiver, closure_body);
+    }
+    
+    return Some(buf);
+}
+
 pub fn generate_get_mut_expr(mcall: &MethodCallExpr) -> Option<String> {
 
     // Obtain the variable Expr that presents the buffer/vector
@@ -474,7 +492,9 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
 
     let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
 
-    if mcall.syntax().parent()?.kind() == STMT_LIST{
+    println!("kind: {:?}", mcall.syntax().parent()?.kind());
+
+    if mcall.syntax().parent()?.kind() == STMT_LIST {
         let target_expr = &mcall;
 
         let target_range = target_expr.syntax().parent()?.parent()?.text_range();
@@ -487,6 +507,24 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
         }
         return reindent_expr(unsafe_expr, acc, target_range, &buf);
     }
+
+    if mcall.syntax().parent()?.kind() == PREFIX_EXPR {
+    let target_expr = &mcall;
+
+    println!("kind: {:?}", target_expr.syntax().parent()?.parent()?);
+
+    println!("kind: {:?}", target_expr.syntax().parent()?.parent()?.parent()?);
+
+    let target_range = target_expr.syntax().parent()?.parent()?.parent()?.text_range();
+
+    let buf = generate_get_mut_expr(&mcall)?;
+    
+    if check_single_methodcall_expr(&target_expr)? == true {
+        replace_source_code(acc, target_range, &buf);
+        return None;
+    }
+    return reindent_expr(unsafe_expr, acc, target_range, &buf);
+}
 
     if mcall.syntax().parent()?.kind() == BIN_EXPR {
         let target_expr = mcall.syntax().parent().and_then(ast::BinExpr::cast)?;
@@ -1904,13 +1942,32 @@ mod tests {
             r#"
     fn main() {
         let vec = vec![1,2,3,4,5,6];
-        let index = unsafe$0 {vec.get_unchecked(5)};
+        let index = unsafe$0 {*vec.get_unchecked(5)};
     }
     "#,
                 r#"
     fn main() {
         let vec = vec![1,2,3,4,5,6];
         let index = vec.get(5).unwrap();
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn get_uncheckd_prefix() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+        let vec = vec![1,2,3,4,5,6];
+        let index = unsafe$0 {*vec.get_unchecked(5)};
+    }
+    "#,
+                r#"
+    fn main() {
+        let vec = vec![1,2,3,4,5,6];
+        let index = *vec.get(5).unwrap();
     }
     "#,
             );
