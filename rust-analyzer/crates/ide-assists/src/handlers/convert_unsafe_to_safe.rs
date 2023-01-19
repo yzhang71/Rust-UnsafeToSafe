@@ -421,7 +421,7 @@ pub fn generate_let_get_mut(mcall: &MethodCallExpr, let_expr: &LetStmt) -> Optio
     return Some(buf);
 }
 
-pub fn generate_get__prefix_mut_expr(mcall: &MethodCallExpr) -> Option<String> {
+pub fn generate_get_prefix_mut_expr(mcall: &MethodCallExpr) -> Option<String> {
 
     // Obtain the variable Expr that presents the buffer/vector
     let receiver = mcall.receiver()?;
@@ -492,8 +492,6 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
 
     let mcall = target_expr.parent().and_then(ast::MethodCallExpr::cast)?;
 
-    println!("kind: {:?}", mcall.syntax().parent()?.kind());
-
     if mcall.syntax().parent()?.kind() == STMT_LIST {
         let target_expr = &mcall;
 
@@ -511,13 +509,9 @@ fn convert_to_get_mut(acc: &mut Assists, target_expr: &SyntaxNode, unsafe_range:
     if mcall.syntax().parent()?.kind() == PREFIX_EXPR {
     let target_expr = &mcall;
 
-    println!("kind: {:?}", target_expr.syntax().parent()?.parent()?);
-
-    println!("kind: {:?}", target_expr.syntax().parent()?.parent()?.parent()?);
-
     let target_range = target_expr.syntax().parent()?.parent()?.parent()?.text_range();
 
-    let buf = generate_get_mut_expr(&mcall)?;
+    let buf = generate_get_prefix_mut_expr(&mcall)?;
     
     if check_single_methodcall_expr(&target_expr)? == true {
         replace_source_code(acc, target_range, &buf);
@@ -1968,6 +1962,25 @@ mod tests {
     fn main() {
         let vec = vec![1,2,3,4,5,6];
         let index = *vec.get(5).unwrap();
+    }
+    "#,
+            );
+    }
+
+    #[test]
+    fn get_uncheckd_mut_prefix() {
+        check_assist(
+            convert_unsafe_to_safe,
+            r#"
+    fn main() {
+        let vec = vec![1,2,3,4,5,6];
+        let index = unsafe$0 {*vec.get_unchecked_mut(5)};
+    }
+    "#,
+                r#"
+    fn main() {
+        let vec = vec![1,2,3,4,5,6];
+        let index = *vec.get_mut(5).unwrap();
     }
     "#,
             );
