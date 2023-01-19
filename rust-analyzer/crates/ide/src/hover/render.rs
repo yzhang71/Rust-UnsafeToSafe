@@ -1,5 +1,5 @@
 //! Logic for rendering the different hover messages
-use std::{fmt::Display, string};
+use std::fmt::Display;
 
 use either::Either;
 use hir::{AsAssocItem, AttributeTemplate, HasAttrs, HasSource, HirDisplay, Semantics, TypeInfo};
