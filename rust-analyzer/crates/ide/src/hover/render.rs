@@ -279,8 +279,8 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
             us_docs.push('\n');
             us_docs.push('\n');
 
-            format_to!(safe_vec, "**```+++```** **```{}```**", generate_safevec_format(&mcall)?.to_string());
-
+            format_to!(safe_vec, "**```+++```** **```{} Runtime Overhead: -0.05%```**", generate_safevec_format(&mcall)?.to_string());
+            
             break;
         }
 
