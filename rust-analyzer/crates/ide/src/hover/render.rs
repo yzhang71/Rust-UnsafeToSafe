@@ -396,7 +396,7 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
         let mut safe_version = String::new();
 
-        format_to!(safe_version, "**```+++```** **```{}```**", generate_get_prefix_mut_expr(&mcall)?);
+        format_to!(safe_version, "**```+++```** **```{} Runtime Overhead: -26.62%```**", generate_get_prefix_mut_expr(&mcall)?);
 
         us_docs.push_str(&safe_version);
 
@@ -523,7 +523,7 @@ fn format_suggestion_cstring_from_vec_unchecked(mcall: CallExpr) -> Option<Strin
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{}```**", generate_cstring_new_format(target_expr.lhs()?.to_string(), &mcall, false)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 0.19%```**", generate_cstring_new_format(target_expr.lhs()?.to_string(), &mcall, false)?);
         
         us_docs.push_str(&safe_cstring_new);
     
