@@ -279,7 +279,7 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
             us_docs.push('\n');
             us_docs.push('\n');
 
-            format_to!(safe_vec, "**```+++```** **```{} Runtime Overhead: -0.05%```**", generate_safevec_format(&mcall)?.to_string());
+            format_to!(safe_vec, "**```+++```** **```{} [Runtime Overhead: -0.05%]```**", generate_safevec_format(&mcall)?.to_string());
             
             break;
         }
@@ -294,7 +294,7 @@ fn format_suggestion_unitialized_vec(mcall: MethodCallExpr, unsafe_expr: &BlockE
             us_docs.push('\n');
             us_docs.push('\n');
 
-            format_to!(safe_vec, "**```+++```** **```{} Runtime Overhead: 12.01%```**", generate_resizevec_format(&mcall)?.to_string());
+            format_to!(safe_vec, "**```+++```** **```{} [Runtime Overhead: 12.01%]```**", generate_resizevec_format(&mcall)?.to_string());
 
             break;
         }
@@ -353,7 +353,7 @@ fn format_suggestion_ptr_copy(mcall: &CallExpr, unsafe_expr: &BlockExpr) -> Opti
 
     let mut safe_version = String::new();
 
-    format_to!(safe_version, "**```+++```** **```{} Runtime Overhead: -26.62%```**", generate_copywithin_format(&mcall, &unsafe_expr)?);
+    format_to!(safe_version, "**```+++```** **```{} [Runtime Overhead: -26.62%]```**", generate_copywithin_format(&mcall, &unsafe_expr)?);
 
     let modify = generate_modify();
 
@@ -396,7 +396,7 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
         let mut safe_version = String::new();
 
-        format_to!(safe_version, "**```+++```** **```{} Runtime Overhead: 7.58%```**", generate_get_prefix_mut_expr(&mcall)?);
+        format_to!(safe_version, "**```+++```** **```{} [Runtime Overhead: 7.58%]```**", generate_get_prefix_mut_expr(&mcall)?);
 
         us_docs.push_str(&safe_version);
 
@@ -414,7 +414,7 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
         let mut safe_version = String::new();
 
-        format_to!(safe_version, "**```+++```** **```{} Runtime Overhead: 7.58%```**", generate_get_mut_expr(&mcall)?);
+        format_to!(safe_version, "**```+++```** **```{} [Runtime Overhead: 7.58%]```**", generate_get_mut_expr(&mcall)?);
 
         us_docs.push_str(&safe_version);
 
@@ -432,7 +432,7 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
         let mut safe_version = String::new();
 
-        format_to!(safe_version, "**```+++```** **```{} Runtime Overhead: 7.58%```**", generate_get_mut(&mcall, &target_expr)?);
+        format_to!(safe_version, "**```+++```** **```{} [Runtime Overhead: 7.58%]```**", generate_get_mut(&mcall, &target_expr)?);
 
         us_docs.push_str(&safe_version);
 
@@ -449,7 +449,7 @@ fn format_suggestion_get_uncheck_mut(mcall: MethodCallExpr) -> Option<String> {
 
     let mut safe_version = String::new();
 
-    format_to!(safe_version, "**```+++```** **```{} Runtime Overhead: 7.58%```**", generate_let_get_mut(&mcall, &let_expr)?);
+    format_to!(safe_version, "**```+++```** **```{} [Runtime Overhead: 7.58%]```**", generate_let_get_mut(&mcall, &let_expr)?);
 
     us_docs.push_str(&safe_version);
 
@@ -484,7 +484,7 @@ fn format_suggestion_ptr_copy_nonoverlapping(mcall: CallExpr, unsafe_expr: &Bloc
 
     let mut safe_version = String::new();
 
-    format_to!(safe_version, "**```+++```** **```{} Runtime Overhead: 0.19%```**", generate_copy_from_slice_format(&mcall, &unsafe_expr)?);
+    format_to!(safe_version, "**```+++```** **```{} [Runtime Overhead: 0.19%]```**", generate_copy_from_slice_format(&mcall, &unsafe_expr)?);
 
     us_docs.push_str(&safe_version);
 
@@ -523,7 +523,7 @@ fn format_suggestion_cstring_from_vec_unchecked(mcall: CallExpr) -> Option<Strin
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 3.27x```**", generate_cstring_new_format(target_expr.lhs()?.to_string(), &mcall, false)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 3.27x]```**", generate_cstring_new_format(target_expr.lhs()?.to_string(), &mcall, false)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -539,7 +539,7 @@ fn format_suggestion_cstring_from_vec_unchecked(mcall: CallExpr) -> Option<Strin
 
     let mut safe_cstring_new = String::new();
 
-    format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 3.27x```**", generate_cstring_new_format(let_expr.pat()?.to_string(), &mcall, true)?);
+    format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 3.27x]```**", generate_cstring_new_format(let_expr.pat()?.to_string(), &mcall, true)?);
 
     us_docs.push_str(&safe_cstring_new);
 
@@ -579,7 +579,7 @@ fn format_suggestion_cstring_bytes_len(mcall: CallExpr) -> Option<String> {
     
         let mut safe_cstring_bytes_len = String::new();
     
-        format_to!(safe_cstring_bytes_len, "**```+++```** **```{} Runtime Overhead: -2.81%```**", generate_bytes_len_format(target_expr.lhs()?.to_string(), &mcall, false)?);
+        format_to!(safe_cstring_bytes_len, "**```+++```** **```{} [Runtime Overhead: -2.81%]```**", generate_bytes_len_format(target_expr.lhs()?.to_string(), &mcall, false)?);
         
         us_docs.push_str(&safe_cstring_bytes_len);
     
@@ -595,7 +595,7 @@ fn format_suggestion_cstring_bytes_len(mcall: CallExpr) -> Option<String> {
 
     let mut safe_cstring_bytes_len = String::new();
 
-    format_to!(safe_cstring_bytes_len, "**```+++```** **```{} Runtime Overhead: -2.81%```**", generate_bytes_len_format(let_expr.pat()?.to_string(), &mcall, true)?);
+    format_to!(safe_cstring_bytes_len, "**```+++```** **```{} [Runtime Overhead: -2.81%]```**", generate_bytes_len_format(let_expr.pat()?.to_string(), &mcall, true)?);
 
     us_docs.push_str(&safe_cstring_bytes_len);
 
@@ -634,7 +634,7 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool, string
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 1.1x```**", generate_from_utf8_expr_stmt(&mcall, mut_sign, string_sign)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 1.1x]```**", generate_from_utf8_expr_stmt(&mcall, mut_sign, string_sign)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -652,7 +652,7 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool, string
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 1.1x```**", generate_from_utf8_expr_stmt(&mcall, mut_sign, string_sign)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 1.1x]```**", generate_from_utf8_expr_stmt(&mcall, mut_sign, string_sign)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -670,7 +670,7 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool, string
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 1.1x```**", generate_from_utf8(&mcall, &target_expr, mut_sign, string_sign)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 1.1x]```**", generate_from_utf8(&mcall, &target_expr, mut_sign, string_sign)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -686,7 +686,7 @@ fn format_suggestion_from_utf8_unchecked(mcall: CallExpr, mut_sign: bool, string
 
     let mut safe_cstring_new = String::new();
 
-    format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 1.1x```**", generate_let_from_utf8(&mcall, &let_expr, mut_sign, string_sign)?);
+    format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 1.1x]```**", generate_let_from_utf8(&mcall, &let_expr, mut_sign, string_sign)?);
 
     us_docs.push_str(&safe_cstring_new);
 
@@ -801,7 +801,7 @@ fn format_suggestion_from_u32_unchecked(mcall: CallExpr) -> Option<String> {
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 3.8x```**", generate_from_u32_expr_stmt(&mcall)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 3.8x]```**", generate_from_u32_expr_stmt(&mcall)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -819,7 +819,7 @@ fn format_suggestion_from_u32_unchecked(mcall: CallExpr) -> Option<String> {
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 3.8x```**", generate_from_u32_expr_stmt(&mcall)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 3.8x]```**", generate_from_u32_expr_stmt(&mcall)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -837,7 +837,7 @@ fn format_suggestion_from_u32_unchecked(mcall: CallExpr) -> Option<String> {
     
         let mut safe_cstring_new = String::new();
     
-        format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 3.8x```**", generate_from_u32(&mcall, &target_expr)?);
+        format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 3.8x]```**", generate_from_u32(&mcall, &target_expr)?);
         
         us_docs.push_str(&safe_cstring_new);
     
@@ -853,7 +853,7 @@ fn format_suggestion_from_u32_unchecked(mcall: CallExpr) -> Option<String> {
 
     let mut safe_cstring_new = String::new();
 
-    format_to!(safe_cstring_new, "**```+++```** **```{} Runtime Overhead: 3.8x```**", generate_let_from_u32(&mcall, &let_expr)?);
+    format_to!(safe_cstring_new, "**```+++```** **```{} [Runtime Overhead: 3.8x]```**", generate_let_from_u32(&mcall, &let_expr)?);
 
     us_docs.push_str(&safe_cstring_new);
 
