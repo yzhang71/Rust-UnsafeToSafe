@@ -9,22 +9,22 @@ It is a part of a larger rls-2.0 effort to create excellent IDE support for Rust
 
 ## Quick Start
 
-1. Install the VScode for Mac OS from link: https://go.microsoft.com/fwlink/?LinkID=534106
-2. Install Rust for Mac OS by command: 
+1. Install the VScode for Linux from link: https://code.visualstudio.com/docs/setup/linux
+2. Install Rust for Linux by command: 
 ```
-curl https://sh.rustup.rs -sSf | sh
+$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
-3. Get the extension source code from Github:
+3. Go the extension source code:
 ```
-git clone https://github.com/yzhang71/rust-analyzer-UnsafeToSafe.git && cd rust-analyzer-UnsafeToSafe
+$ cd rust-analyzer
 ```
-4. Install Nodejs and nmp for Mac OS by command: 
+4. Install Nodejs and npm for Linux by command: 
 ```
-brew update && brew install node
+$ sudo apt install nodejs
+$ curl -L https://npmjs.org/install.sh | sudo sh 
 ```
 5. Install the extension to VScode: 
 ```
 cargo xtask install
 ```
-Now the extension is installed in your VScode, you can open any Rust project and test the UnsafeToSafe extension
-Source code link: https://github.com/yzhang71/rust-analyzer-UnsafeToSafe/blob/master/crates/ide-assists/src/handlers/convert_unsafe_to_safe.rs
+Now the extension is installed in your VScode, you can open the "Demo" project and test the safe suggestion plugin
