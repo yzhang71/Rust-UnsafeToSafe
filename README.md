@@ -27,6 +27,6 @@ cargo xtask install
 ```
 Now the extension is installed in your VScode, you can open the [Demo](./Demo) project and test the safe suggestion plugin.
 
-## Analysis Result
+## Data and Analysis Result
 
-The datasets and analysis results are avaliable at [Analysis_Result](./Analysis_Result).
+The datasets and analysis results are avaliable at [Analysis_Results](./Analysis_Results).
