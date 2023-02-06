@@ -4,9 +4,7 @@
     alt="rust-analyzer logo">
 </p>
 
-rust-analyzer is a modular compiler frontend for the Rust language.
-It is a part of a larger rls-2.0 effort to create excellent IDE support for Rust.
-
+rust-analyzer is a modular compiler frontend for the Rust language. Our plugin is built upon that.
 ## Quick Start
 
 1. Install the VScode for Linux from link: https://code.visualstudio.com/docs/setup/linux
@@ -27,4 +25,8 @@ $ curl -L https://npmjs.org/install.sh | sudo sh
 ```
 cargo xtask install
 ```
-Now the extension is installed in your VScode, you can open the "Demo" project and test the safe suggestion plugin
+Now the extension is installed in your VScode, you can open the [Demo](./Demo) project and test the safe suggestion plugin.
+
+## Analysis Result
+
+The datasets and analysis results are avaliable at [Analysis_Result](./Analysis_Result).
